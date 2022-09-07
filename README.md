@@ -2,7 +2,7 @@
 
 Goroutine-safe, high-performance in-memory cache, optimized for reads over writes, with expiration, rich API, and support for generics.
 
-Based on [puzpuzpuz/xsync]([puzpuzpuz/xsync: Concurrent data structures for Go (github.com)](https://github.com/puzpuzpuz/xsync)).
+Based on [puzpuzpuz/xsync](https://github.com/puzpuzpuz/xsync).
 
 ## ⚙️ Installation
 
@@ -37,7 +37,7 @@ func main() {
 }
 ```
 
-## ✨ Cache Interface
+## ✨ CacheOf Interface
 
 ```go
 type CacheOf[V any] interface {
@@ -112,7 +112,7 @@ type CacheOf[V any] interface {
 }
 ```
 
-## Config
+## ConfigOf
 
 ```go
 const (
@@ -127,11 +127,11 @@ const (
 	DefaultCleanupInterval = 10 * time.Second
 )
 
-// EvictedCallback callback function to execute when the key-value pair expires and is evicted.
+// EvictedCallbackOf callback function to execute when the key-value pair expires and is evicted.
 // Warning: cannot block, it is recommended to use goroutine.
-type EvictedCallback func(k string, v interface{})
+type EvictedCallbackOf[V any] func(k string, v V)
 
-type Config struct {
+type ConfigOf[V any] struct {
 	// DefaultExpiration default expiration time for key-value pairs.
 	DefaultExpiration time.Duration
 
@@ -139,7 +139,7 @@ type Config struct {
 	CleanupInterval time.Duration
 
 	// EvictedCallback executed when the key-value pair expires.
-	EvictedCallback EvictedCallback
+	EvictedCallback EvictedCallbackOf[V]
 }
 ```
 
