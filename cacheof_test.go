@@ -32,7 +32,7 @@ func TestCacheOf_Expire(t *testing.T) {
 	c.Set("b", 2, DefaultExpiration)
 	c.Set("c", 3, NoExpiration)
 	c.Set("d", 4, 20*time.Millisecond)
-	c.Set("e", 5, 70*time.Millisecond)
+	c.Set("e", 5, 100*time.Millisecond)
 
 	<-time.After(25 * time.Millisecond)
 	_, ok := c.Get("d")
@@ -58,7 +58,7 @@ func TestCacheOf_Expire(t *testing.T) {
 		t.Fatal("key e has not expired but was not found")
 	}
 
-	<-time.After(20 * time.Millisecond)
+	<-time.After(50 * time.Millisecond)
 	_, ok = c.Get("e")
 	if ok {
 		t.Fatal("key e should be automatically deleted")
@@ -237,12 +237,12 @@ func TestCacheOf_DeleteExpired(t *testing.T) {
 	testEvictedCallback := func(k string, v int64) {
 		atomic.AddInt64(&n, v)
 	}
-	c := NewOfDefault[int64](5*time.Millisecond, 1*time.Millisecond, testEvictedCallback)
+	c := NewOfDefault[int64](10*time.Millisecond, 5*time.Millisecond, testEvictedCallback)
 	for i := 0; i < 10; i++ {
 		c.SetDefault(strconv.Itoa(i), int64(i))
 	}
 
-	<-time.After(20 * time.Millisecond)
+	<-time.After(200 * time.Millisecond)
 	m := atomic.LoadInt64(&n)
 	if m != 45 {
 		t.Fatalf("evicted callback executes incorrectly, expected %d, got %d", 45, m)
