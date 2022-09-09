@@ -20,7 +20,7 @@ func mockXsyncMapOf(cfg ...ConfigOf[any]) CacheOf[any] {
 			},
 		}
 	}
-	c := NewXsyncMapOf[any](cfg...)
+	c := newXsyncMapOf[any](cfg...)
 	for _, x := range testKV {
 		c.SetDefault(x.k, x.v)
 	}
@@ -29,7 +29,7 @@ func mockXsyncMapOf(cfg ...ConfigOf[any]) CacheOf[any] {
 }
 
 func TestXsyncMapOf_Expire(t *testing.T) {
-	c := NewXsyncMapOfDefault[int](20*time.Millisecond, 1*time.Millisecond)
+	c := newXsyncMapOfDefault[int](20*time.Millisecond, 1*time.Millisecond)
 	c.Set("a", 1, 0)
 	c.Set("b", 2, DefaultExpiration)
 	c.Set("c", 3, NoExpiration)
@@ -91,7 +91,7 @@ func TestXsyncMapOf_SetAndGet(t *testing.T) {
 
 func TestXsyncMapOf_SetDefault(t *testing.T) {
 	defaultExpiration := 50 * time.Millisecond
-	c := NewXsyncMapOfDefault[int](defaultExpiration, testCleanupInterval)
+	c := newXsyncMapOfDefault[int](defaultExpiration, testCleanupInterval)
 	c.SetDefault("x", 1)
 	v, ok := c.Get("x")
 	if !ok || v != 1 {
@@ -115,7 +115,7 @@ func TestXsyncMapOf_SetDefault(t *testing.T) {
 
 func TestXsyncMapOf_SetForever(t *testing.T) {
 	defaultExpiration := 50 * time.Millisecond
-	c := NewXsyncMapOfDefault[int](defaultExpiration, testCleanupInterval)
+	c := newXsyncMapOfDefault[int](defaultExpiration, testCleanupInterval)
 	c.SetForever("x", 1)
 	v, ok := c.Get("x")
 	if !ok || v != 1 {
@@ -130,7 +130,7 @@ func TestXsyncMapOf_SetForever(t *testing.T) {
 }
 
 func TestXsyncMapOf_GetOrSet(t *testing.T) {
-	c := NewXsyncMapOf[int]()
+	c := newXsyncMapOf[int]()
 	v, ok := c.GetOrSet("x", 1, testDefaultExpiration)
 	if ok {
 		t.Fatal("key x should not loaded")
@@ -151,7 +151,7 @@ func TestXsyncMapOf_GetOrSet(t *testing.T) {
 }
 
 func TestXsyncMapOf_GetAndSet(t *testing.T) {
-	c := NewXsyncMapOf[int]()
+	c := newXsyncMapOf[int]()
 	v, ok := c.GetAndSet("x", 1, testDefaultExpiration)
 	if ok {
 		t.Fatal("key x should not loaded")
@@ -172,7 +172,7 @@ func TestXsyncMapOf_GetAndSet(t *testing.T) {
 }
 
 func TestXsyncMapOf_GetAndRefresh(t *testing.T) {
-	c := NewXsyncMapOfDefault[int](100*time.Millisecond, testCleanupInterval)
+	c := newXsyncMapOfDefault[int](100*time.Millisecond, testCleanupInterval)
 	c.SetDefault("x", 1)
 	v, tm, ok := c.GetWithExpiration("x")
 	if !ok || v != 1 || tm.Before(time.Now()) {
@@ -197,7 +197,7 @@ func TestXsyncMapOf_GetAndRefresh(t *testing.T) {
 }
 
 func TestXsyncMapOf_GetAndDelete(t *testing.T) {
-	c := NewXsyncMapOf[int]()
+	c := newXsyncMapOf[int]()
 	v, ok := c.GetAndDelete("x")
 	if ok || v != 0 {
 		t.Fatal("key a should not exist")
@@ -217,7 +217,7 @@ func TestXsyncMapOf_GetAndDelete(t *testing.T) {
 }
 
 func TestXsyncMapOf_Delete(t *testing.T) {
-	c := NewXsyncMapOf[int]()
+	c := newXsyncMapOf[int]()
 	c.Delete("x")
 
 	c.SetForever("x", 1)
@@ -239,7 +239,7 @@ func TestXsyncMapOf_DeleteExpired(t *testing.T) {
 	testEvictedCallback := func(k string, v int64) {
 		atomic.AddInt64(&n, v)
 	}
-	c := NewXsyncMapOfDefault[int64](10*time.Millisecond, 5*time.Millisecond, testEvictedCallback)
+	c := newXsyncMapOfDefault[int64](10*time.Millisecond, 5*time.Millisecond, testEvictedCallback)
 	for i := 0; i < 10; i++ {
 		c.SetDefault(strconv.Itoa(i), int64(i))
 	}
@@ -262,7 +262,7 @@ func TestXsyncMapOf_Range(t *testing.T) {
 		atomic.AddInt64(&n, v)
 		return true
 	}
-	c := NewXsyncMapOf[int64]()
+	c := newXsyncMapOf[int64]()
 	for i := 0; i < 10; i++ {
 		c.SetDefault(strconv.Itoa(i), int64(i))
 	}

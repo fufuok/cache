@@ -83,7 +83,7 @@ func NewOf[V any](opts ...OptionOf[V]) CacheOf[V] {
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	return NewXsyncMapOf[V](cfg)
+	return newXsyncMapOf[V](cfg)
 }
 
 func NewOfDefault[V any](

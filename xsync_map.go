@@ -20,8 +20,8 @@ type xsyncMap struct {
 	stop              chan struct{}
 }
 
-// NewXsyncMap create a new cache, optionally specifying configuration items.
-func NewXsyncMap(config ...Config) Cache {
+// create a new cache, optionally specifying configuration items.
+func newXsyncMap(config ...Config) Cache {
 	cfg := configDefault(config...)
 	c := &xsyncMap{
 		defaultExpiration: cfg.DefaultExpiration,
@@ -50,9 +50,9 @@ func NewXsyncMap(config ...Config) Cache {
 	return cache
 }
 
-// NewXsyncMapDefault creates a new cache with the given default expiration duration and cleanup interval.
+// creates a new cache with the given default expiration duration and cleanup interval.
 // If the cleanup interval is less than 1, the cleanup needs to be performed manually, calling c.DeleteExpired()
-func NewXsyncMapDefault(defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallback) Cache {
+func newXsyncMapDefault(defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallback) Cache {
 	cfg := Config{
 		DefaultExpiration: defaultExpiration,
 		CleanupInterval:   cleanupInterval,
@@ -60,7 +60,7 @@ func NewXsyncMapDefault(defaultExpiration, cleanupInterval time.Duration, evicte
 	if len(evictedCallback) > 0 {
 		cfg.EvictedCallback = evictedCallback[0]
 	}
-	return NewXsyncMap(cfg)
+	return newXsyncMap(cfg)
 }
 
 // Set add item to the cache, replacing any existing items.

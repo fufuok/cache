@@ -23,8 +23,8 @@ type xsyncMapOf[V any] struct {
 	stop              chan struct{}
 }
 
-// NewXsyncMapOf create a new cache, optionally specifying configuration items.
-func NewXsyncMapOf[V any](config ...ConfigOf[V]) CacheOf[V] {
+// create a new cache, optionally specifying configuration items.
+func newXsyncMapOf[V any](config ...ConfigOf[V]) CacheOf[V] {
 	cfg := configDefaultOf(config...)
 	c := &xsyncMapOf[V]{
 		defaultExpiration: cfg.DefaultExpiration,
@@ -53,9 +53,9 @@ func NewXsyncMapOf[V any](config ...ConfigOf[V]) CacheOf[V] {
 	return cache
 }
 
-// NewXsyncMapOfDefault creates a new cache with the given default expiration duration and cleanup interval.
+// creates a new cache with the given default expiration duration and cleanup interval.
 // If the cleanup interval is less than 1, the cleanup needs to be performed manually, calling c.DeleteExpired()
-func NewXsyncMapOfDefault[V any](
+func newXsyncMapOfDefault[V any](
 	defaultExpiration,
 	cleanupInterval time.Duration,
 	evictedCallback ...EvictedCallbackOf[V],
@@ -67,7 +67,7 @@ func NewXsyncMapOfDefault[V any](
 	if len(evictedCallback) > 0 {
 		cfg.EvictedCallback = evictedCallback[0]
 	}
-	return NewXsyncMapOf[V](cfg)
+	return newXsyncMapOf[V](cfg)
 }
 
 // Set add item to the cache, replacing any existing items.

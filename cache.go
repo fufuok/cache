@@ -80,7 +80,7 @@ func New(opts ...Option) Cache {
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	return NewXsyncMap(cfg)
+	return newXsyncMap(cfg)
 }
 
 func NewDefault(
