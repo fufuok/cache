@@ -12,19 +12,19 @@ import "github.com/fufuok/cache"
 - [type Cache](<#type-cache>)
   - [func New(opts ...Option) Cache](<#func-new>)
   - [func NewDefault(defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallback) Cache](<#func-newdefault>)
-  - [func NewXsyncMap(config ...Config) Cache](<#func-newxsyncmap>)
-  - [func NewXsyncMapDefault(defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallback) Cache](<#func-newxsyncmapdefault>)
 - [type CacheOf](<#type-cacheof>)
   - [func NewOf[V any](opts ...OptionOf[V]) CacheOf[V]](<#func-newof>)
   - [func NewOfDefault[V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[V]) CacheOf[V]](<#func-newofdefault>)
-  - [func NewXsyncMapOf[V any](config ...ConfigOf[V]) CacheOf[V]](<#func-newxsyncmapof>)
-  - [func NewXsyncMapOfDefault[V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[V]) CacheOf[V]](<#func-newxsyncmapofdefault>)
 - [type Config](<#type-config>)
   - [func DefaultConfig() Config](<#func-defaultconfig>)
 - [type ConfigOf](<#type-configof>)
   - [func DefaultConfigOf[V any]() ConfigOf[V]](<#func-defaultconfigof>)
 - [type EvictedCallback](<#type-evictedcallback>)
 - [type EvictedCallbackOf](<#type-evictedcallbackof>)
+- [type Map](<#type-map>)
+  - [func NewMap() Map](<#func-newmap>)
+- [type MapOf](<#type-mapof>)
+  - [func NewMapOf[V any]() MapOf[V]](<#func-newmapof>)
 - [type Option](<#type-option>)
   - [func WithCleanupInterval(interval time.Duration) Option](<#func-withcleanupinterval>)
   - [func WithDefaultExpiration(duration time.Duration) Option](<#func-withdefaultexpiration>)
@@ -138,22 +138,6 @@ func New(opts ...Option) Cache
 func NewDefault(defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallback) Cache
 ```
 
-### func NewXsyncMap
-
-```go
-func NewXsyncMap(config ...Config) Cache
-```
-
-NewXsyncMap create a new cache\, optionally specifying configuration items\.
-
-### func NewXsyncMapDefault
-
-```go
-func NewXsyncMapDefault(defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallback) Cache
-```
-
-NewXsyncMapDefault creates a new cache with the given default expiration duration and cleanup interval\. If the cleanup interval is less than 1\, the cleanup needs to be performed manually\, calling c\.DeleteExpired\(\)
-
 ## type CacheOf
 
 ```go
@@ -241,22 +225,6 @@ func NewOf[V any](opts ...OptionOf[V]) CacheOf[V]
 func NewOfDefault[V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[V]) CacheOf[V]
 ```
 
-### func NewXsyncMapOf
-
-```go
-func NewXsyncMapOf[V any](config ...ConfigOf[V]) CacheOf[V]
-```
-
-NewXsyncMapOf create a new cache\, optionally specifying configuration items\.
-
-### func NewXsyncMapOfDefault
-
-```go
-func NewXsyncMapOfDefault[V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[V]) CacheOf[V]
-```
-
-NewXsyncMapOfDefault creates a new cache with the given default expiration duration and cleanup interval\. If the cleanup interval is less than 1\, the cleanup needs to be performed manually\, calling c\.DeleteExpired\(\)
-
 ## type Config
 
 ```go
@@ -314,6 +282,106 @@ EvictedCallbackOf callback function to execute when the key\-value pair expires 
 ```go
 type EvictedCallbackOf[V any] func(k string, v V)
 ```
+
+## type Map
+
+```go
+type Map interface {
+    // Store add item to the cache, replacing any existing items.
+    Store(k string, v interface{})
+
+    // Load an item from the cache.
+    // Returns the item or nil,
+    // and a boolean indicating whether the key was found.
+    Load(k string) (interface{}, bool)
+
+    // LoadOrStore returns the existing value for the key if present.
+    // Otherwise, it stores and returns the given value.
+    // The loaded result is true if the value was loaded, false if stored.
+    LoadOrStore(k string, v interface{}) (interface{}, bool)
+
+    // LoadAndStore returns the existing value for the key if present,
+    // while setting the new value for the key.
+    // Otherwise, it stores and returns the given value.
+    // The loaded result is true if the value was loaded, false otherwise.
+    LoadAndStore(k string, v interface{}) (interface{}, bool)
+
+    // LoadAndDelete Get an item from the cache, and delete the key.
+    // Returns the item or nil,
+    // and a boolean indicating whether the key was found.
+    LoadAndDelete(k string) (interface{}, bool)
+
+    // Delete an item from the cache.
+    // Does nothing if the key is not in the cache.
+    Delete(k string)
+
+    // Range calls f sequentially for each key and value present in the map.
+    // If f returns false, range stops the iteration.
+    Range(f func(k string, v interface{}) bool)
+
+    // Size returns the number of items in the cache.
+    // This may include items that have expired but have not been cleaned up.
+    Size() int
+}
+```
+
+### func NewMap
+
+```go
+func NewMap() Map
+```
+
+NewMap the keys never expire\, similar to the use of sync\.Map\.
+
+## type MapOf
+
+```go
+type MapOf[V any] interface {
+    // Store add item to the cache, replacing any existing items.
+    Store(k string, v V)
+
+    // Load an item from the cache.
+    // Returns the item or nil,
+    // and a boolean indicating whether the key was found.
+    Load(k string) (V, bool)
+
+    // LoadOrStore returns the existing value for the key if present.
+    // Otherwise, it stores and returns the given value.
+    // The loaded result is true if the value was loaded, false if stored.
+    LoadOrStore(k string, v V) (V, bool)
+
+    // LoadAndStore returns the existing value for the key if present,
+    // while setting the new value for the key.
+    // Otherwise, it stores and returns the given value.
+    // The loaded result is true if the value was loaded, false otherwise.
+    LoadAndStore(k string, v V) (V, bool)
+
+    // LoadAndDelete Get an item from the cache, and delete the key.
+    // Returns the item or nil,
+    // and a boolean indicating whether the key was found.
+    LoadAndDelete(k string) (V, bool)
+
+    // Delete an item from the cache.
+    // Does nothing if the key is not in the cache.
+    Delete(k string)
+
+    // Range calls f sequentially for each key and value present in the map.
+    // If f returns false, range stops the iteration.
+    Range(f func(k string, v V) bool)
+
+    // Size returns the number of items in the cache.
+    // This may include items that have expired but have not been cleaned up.
+    Size() int
+}
+```
+
+### func NewMapOf
+
+```go
+func NewMapOf[V any]() MapOf[V]
+```
+
+NewMapOf the keys never expire\, similar to the use of sync\.Map\.
 
 ## type Option
 

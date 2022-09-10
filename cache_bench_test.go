@@ -6,12 +6,11 @@ package cache
 import (
 	"math/rand"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 )
 
-// Ref: https://github.com/puzpuzpuz/xsync/blob/main/map_test.go
+// Ref: https://github.com/puzpuzpuz/xsync/blob/main/mapof_test.go
 const (
 	// number of entries to use in benchmarks
 	benchmarkNumEntries = 1_000_000
@@ -48,34 +47,10 @@ func BenchmarkCache_NoWarmUp(b *testing.B) {
 		}
 		b.Run(bc.name, func(b *testing.B) {
 			m := NewOf[int]()
-			benchmarkMap(b, func(k string) (int, bool) {
+			benchmarkCache(b, func(k string) (int, bool) {
 				return m.Get(k)
 			}, func(k string, v int) {
 				m.SetForever(k, v)
-			}, func(k string) {
-				m.Delete(k)
-			}, bc.readPercentage)
-		})
-	}
-}
-
-func BenchmarkCache_StandardMap_NoWarmUp(b *testing.B) {
-	for _, bc := range benchmarkCases {
-		if bc.readPercentage == 100 {
-			// This benchmark doesn't make sense without a warm-up.
-			continue
-		}
-		b.Run(bc.name, func(b *testing.B) {
-			var m sync.Map
-			benchmarkMap(b, func(k string) (int, bool) {
-				v, ok := m.Load(k)
-				n := 0
-				if v != nil {
-					n = v.(int)
-				}
-				return n, ok
-			}, func(k string, v int) {
-				m.Store(k, v)
 			}, func(k string) {
 				m.Delete(k)
 			}, bc.readPercentage)
@@ -90,7 +65,7 @@ func BenchmarkCache_WarmUp(b *testing.B) {
 			for i := 0; i < benchmarkNumEntries; i++ {
 				m.SetForever(benchmarkKeyPrefix+strconv.Itoa(i), i)
 			}
-			benchmarkMap(b, func(k string) (int, bool) {
+			benchmarkCache(b, func(k string) (int, bool) {
 				return m.Get(k)
 			}, func(k string, v int) {
 				m.SetForever(k, v)
@@ -101,32 +76,7 @@ func BenchmarkCache_WarmUp(b *testing.B) {
 	}
 }
 
-// This is a nice scenario for sync.Map since a lot of updates
-// will hit the readOnly part of the map.
-func BenchmarkCache_StandardMap_WarmUp(b *testing.B) {
-	for _, bc := range benchmarkCases {
-		b.Run(bc.name, func(b *testing.B) {
-			var m sync.Map
-			for i := 0; i < benchmarkNumEntries; i++ {
-				m.Store(benchmarkKeyPrefix+strconv.Itoa(i), i)
-			}
-			benchmarkMap(b, func(k string) (int, bool) {
-				v, ok := m.Load(k)
-				n := 0
-				if v != nil {
-					n = v.(int)
-				}
-				return n, ok
-			}, func(k string, v int) {
-				m.Store(k, v)
-			}, func(k string) {
-				m.Delete(k)
-			}, bc.readPercentage)
-		})
-	}
-}
-
-func benchmarkMap(
+func benchmarkCache(
 	b *testing.B,
 	loadFn func(k string) (int, bool),
 	storeFn func(k string, v int),
@@ -163,24 +113,6 @@ func BenchmarkCache_Range(b *testing.B) {
 		foo := 0
 		for pb.Next() {
 			m.Range(func(key string, value int) bool {
-				foo++
-				return true
-			})
-			_ = foo
-		}
-	})
-}
-
-func BenchmarkCache_RangeStandardMap(b *testing.B) {
-	var m sync.Map
-	for i := 0; i < benchmarkNumEntries; i++ {
-		m.Store(benchmarkKeys[i], i)
-	}
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		foo := 0
-		for pb.Next() {
-			m.Range(func(key any, value any) bool {
 				foo++
 				return true
 			})
