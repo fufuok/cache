@@ -14,6 +14,8 @@ go get github.com/fufuok/cache
 
 Please see: [examples](examples)
 
+**Cache or CacheOf usage**
+
 ```go
 package main
 
@@ -24,16 +26,41 @@ import (
 )
 
 func main() {
-    // for generics
-    // c := cache.NewOf[int]()
-    c := cache.New()
+	// for generics
+	// c := cache.NewOf[int]()
+	c := cache.New()
 	c.SetForever("A", 1)
 	c.GetOrSet("B", 2, 1*time.Second) // 2 false
 	time.Sleep(1 * time.Second)
-	c.Get("A") // 1, true    
-    // for generics
-    // c.Get("B") // 0, false
-    c.Get("B") // nil, false
+	c.Get("A") // 1, true
+	// for generics
+	// c.Get("B") // 0, false
+	c.Get("B") // nil, false
+}
+```
+
+**Map or MapOf usage (similar to sync.Map)**
+
+```go
+package main
+
+import (
+	"time"
+
+	"github.com/fufuok/cache"
+)
+
+func main() {
+	// for generics
+	// m := cache.NewMapOf[int]()
+	m := cache.NewMap()
+	m.Store("A", 1)
+	m.LoadOrStore("B", 2) // 2 false
+	m.LoadAndDelete("B")  // 2, true
+	m.Load("A")           // 1, true
+	// for generics
+	// m.Load("B") // 0, false
+	m.Load("B") // nil, false
 }
 ```
 
