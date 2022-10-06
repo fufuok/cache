@@ -5,6 +5,7 @@ package cache
 
 import (
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"github.com/fufuok/cache/internal/xsync"
@@ -17,21 +18,21 @@ type xsyncMapOfWrapper[V any] struct {
 }
 
 type xsyncMapOf[V any] struct {
-	defaultExpiration time.Duration
-	evictedCallback   EvictedCallbackOf[V]
+	defaultExpiration atomic.Value
+	evictedCallback   atomic.Value
 	items             *xsync.MapOf[itemOf[V]]
 	stop              chan struct{}
 }
 
-// create a new cache, optionally specifying configuration items.
+// Create a new cache, optionally specifying configuration items.
 func newXsyncMapOf[V any](config ...ConfigOf[V]) CacheOf[V] {
 	cfg := configDefaultOf(config...)
 	c := &xsyncMapOf[V]{
-		defaultExpiration: cfg.DefaultExpiration,
-		evictedCallback:   cfg.EvictedCallback,
-		items:             xsync.NewMapOf[itemOf[V]](),
-		stop:              make(chan struct{}),
+		items: xsync.NewMapOf[itemOf[V]](),
+		stop:  make(chan struct{}),
 	}
+	c.defaultExpiration.Store(cfg.DefaultExpiration)
+	c.evictedCallback.Store(cfg.EvictedCallback)
 
 	if cfg.CleanupInterval > 0 {
 		go func() {
@@ -53,8 +54,9 @@ func newXsyncMapOf[V any](config ...ConfigOf[V]) CacheOf[V] {
 	return cache
 }
 
-// creates a new cache with the given default expiration duration and cleanup interval.
-// If the cleanup interval is less than 1, the cleanup needs to be performed manually, calling c.DeleteExpired()
+// Creates a new cache with the given default expiration duration and cleanup interval.
+// If the cleanup interval is less than 1, the cleanup needs to be performed manually,
+// calling c.DeleteExpired()
 func newXsyncMapOfDefault[V any](
 	defaultExpiration,
 	cleanupInterval time.Duration,
@@ -73,7 +75,8 @@ func newXsyncMapOfDefault[V any](
 // Set add item to the cache, replacing any existing items.
 // (DefaultExpiration), the item uses a cached default expiration time.
 // (NoExpiration), the item never expires.
-// All values less than or equal to 0 are the same except DefaultExpiration, which means never expires.
+// All values less than or equal to 0 are the same except DefaultExpiration,
+// which means never expires.
 func (c *xsyncMapOf[V]) Set(k string, v V, d time.Duration) {
 	c.items.Store(k, itemOf[V]{
 		v: v,
@@ -83,7 +86,7 @@ func (c *xsyncMapOf[V]) Set(k string, v V, d time.Duration) {
 
 func (c *xsyncMapOf[V]) expiration(d time.Duration) (e int64) {
 	if d == DefaultExpiration {
-		d = c.defaultExpiration
+		d = c.DefaultExpiration()
 	}
 	if d > 0 {
 		e = time.Now().Add(d).UnixNano()
@@ -91,7 +94,8 @@ func (c *xsyncMapOf[V]) expiration(d time.Duration) (e int64) {
 	return
 }
 
-// SetDefault add item to the cache with the default expiration time, replacing any existing items.
+// SetDefault add item to the cache with the default expiration time,
+// replacing any existing items.
 func (c *xsyncMapOf[V]) SetDefault(k string, v V) {
 	c.Set(k, v, DefaultExpiration)
 }
@@ -216,8 +220,9 @@ func (c *xsyncMapOf[V]) GetAndDelete(k string) (V, bool) {
 		var v V
 		return v, false
 	}
-	if c.evictedCallback != nil {
-		c.evictedCallback(k, i.v)
+	ec := c.EvictedCallback()
+	if ec != nil {
+		ec(k, i.v)
 	}
 	return i.v, true
 }
@@ -236,19 +241,20 @@ type kvOf[V any] struct {
 // DeleteExpired delete all expired items from the cache.
 func (c *xsyncMapOf[V]) DeleteExpired() {
 	var evictedItems []kvOf[V]
+	ec := c.EvictedCallback()
 	now := time.Now().UnixNano()
 	c.items.Range(func(k string, v itemOf[V]) bool {
 		i := v
 		if i.expiredWithNow(now) {
 			c.items.Delete(k)
-			if c.evictedCallback != nil {
+			if ec != nil {
 				evictedItems = append(evictedItems, kvOf[V]{k, i.v})
 			}
 		}
 		return true
 	})
 	for _, v := range evictedItems {
-		c.evictedCallback(v.k, v.v)
+		ec(v.k, v.v)
 	}
 }
 
@@ -283,4 +289,28 @@ func (c *xsyncMapOf[V]) Items() map[string]V {
 // This may include items that have expired but have not been cleaned up.
 func (c *xsyncMapOf[V]) Count() int {
 	return c.items.Size()
+}
+
+// DefaultExpiration returns the default expiration time of the cache.
+func (c *xsyncMapOf[V]) DefaultExpiration() time.Duration {
+	return c.defaultExpiration.Load().(time.Duration)
+}
+
+// SetDefaultExpiration sets the default expiration time for the cache.
+// Atomic safety.
+func (c *xsyncMapOf[V]) SetDefaultExpiration(defaultExpiration time.Duration) {
+	c.defaultExpiration.Store(defaultExpiration)
+}
+
+// EvictedCallback returns the callback function to execute
+// when a key-value pair expires and is evicted.
+func (c *xsyncMapOf[V]) EvictedCallback() EvictedCallbackOf[V] {
+	return c.evictedCallback.Load().(EvictedCallbackOf[V])
+}
+
+// SetEvictedCallback Set the callback function to be executed
+// when the key-value pair expires and is evicted.
+// Atomic safety.
+func (c *xsyncMapOf[V]) SetEvictedCallback(evictedCallback EvictedCallbackOf[V]) {
+	c.evictedCallback.Store(evictedCallback)
 }

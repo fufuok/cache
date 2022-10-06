@@ -58,10 +58,12 @@ type Cache interface {
     // Set add item to the cache, replacing any existing items.
     // (DefaultExpiration), the item uses a cached default expiration time.
     // (NoExpiration), the item never expires.
-    // All values less than or equal to 0 are the same except DefaultExpiration, which means never expires.
+    // All values less than or equal to 0 are the same except DefaultExpiration,
+    // which means never expires.
     Set(k string, v interface{}, d time.Duration)
 
-    // SetDefault add item to the cache with the default expiration time, replacing any existing items.
+    // SetDefault add item to the cache with the default expiration time,
+    // replacing any existing items.
     SetDefault(k string, v interface{})
 
     // SetForever add item to cache and set to never expire, replacing any existing items.
@@ -123,6 +125,22 @@ type Cache interface {
     // Count returns the number of items in the cache.
     // This may include items that have expired but have not been cleaned up.
     Count() int
+
+    // DefaultExpiration returns the default expiration time for the cache.
+    DefaultExpiration() time.Duration
+
+    // SetDefaultExpiration sets the default expiration time for the cache.
+    // Atomic safety.
+    SetDefaultExpiration(defaultExpiration time.Duration)
+
+    // EvictedCallback returns the callback function to execute
+    // when a key-value pair expires and is evicted.
+    EvictedCallback() EvictedCallback
+
+    // SetEvictedCallback Set the callback function to be executed
+    // when the key-value pair expires and is evicted.
+    // Atomic safety.
+    SetEvictedCallback(evictedCallback EvictedCallback)
 }
 ```
 
@@ -145,10 +163,12 @@ type CacheOf[V any] interface {
     // Set add item to the cache, replacing any existing items.
     // (DefaultExpiration), the item uses a cached default expiration time.
     // (NoExpiration), the item never expires.
-    // All values less than or equal to 0 are the same except DefaultExpiration, which means never expires.
+    // All values less than or equal to 0 are the same except DefaultExpiration,
+    // which means never expires.
     Set(k string, v V, d time.Duration)
 
-    // SetDefault add item to the cache with the default expiration time, replacing any existing items.
+    // SetDefault add item to the cache with the default expiration time,
+    // replacing any existing items.
     SetDefault(k string, v V)
 
     // SetForever add item to cache and set to never expire, replacing any existing items.
@@ -210,6 +230,22 @@ type CacheOf[V any] interface {
     // Count returns the number of items in the cache.
     // This may include items that have expired but have not been cleaned up.
     Count() int
+
+    // DefaultExpiration returns the default expiration time for the cache.
+    DefaultExpiration() time.Duration
+
+    // SetDefaultExpiration sets the default expiration time for the cache.
+    // Atomic safety.
+    SetDefaultExpiration(defaultExpiration time.Duration)
+
+    // EvictedCallback returns the callback function to execute
+    // when a key-value pair expires and is evicted.
+    EvictedCallback() EvictedCallbackOf[V]
+
+    // SetEvictedCallback Set the callback function to be executed
+    // when the key-value pair expires and is evicted.
+    // Atomic safety.
+    SetEvictedCallback(evictedCallback EvictedCallbackOf[V])
 }
 ```
 
