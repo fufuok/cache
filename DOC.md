@@ -9,30 +9,48 @@ import "github.com/fufuok/cache"
 ## Index
 
 - [Constants](<#constants>)
+- [func FastRand() uint32](<#func-fastrand>)
+- [func FastRandn(n uint32) uint32](<#func-fastrandn>)
+- [func GenHasher64[K comparable]() func(K) uint64](<#func-genhasher64>)
+- [func GenSeedHasher64[K comparable]() func(maphash.Seed, K) uint64](<#func-genseedhasher64>)
+- [func Hash64[T IntegerConstraint](seed maphash.Seed, v T) uint64](<#func-hash64>)
+- [func HashString(seed maphash.Seed, s string) uint64](<#func-hashstring>)
+- [func StrHash64(s string) uint64](<#func-strhash64>)
 - [type Cache](<#type-cache>)
   - [func New(opts ...Option) Cache](<#func-new>)
   - [func NewDefault(defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallback) Cache](<#func-newdefault>)
 - [type CacheOf](<#type-cacheof>)
-  - [func NewOf[V any](opts ...OptionOf[V]) CacheOf[V]](<#func-newof>)
-  - [func NewOfDefault[V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[V]) CacheOf[V]](<#func-newofdefault>)
+  - [func NewHashOf[K comparable, V any](opts ...OptionOf[K, V]) CacheOf[K, V]](<#func-newhashof>)
+  - [func NewHashOfDefault[K comparable, V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[K, V]) CacheOf[K, V]](<#func-newhashofdefault>)
+  - [func NewIntegerOf[K IntegerConstraint, V any](opts ...OptionOf[K, V]) CacheOf[K, V]](<#func-newintegerof>)
+  - [func NewIntegerOfDefault[K IntegerConstraint, V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[K, V]) CacheOf[K, V]](<#func-newintegerofdefault>)
+  - [func NewOf[V any](opts ...OptionOf[string, V]) CacheOf[string, V]](<#func-newof>)
+  - [func NewOfDefault[V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[string, V]) CacheOf[string, V]](<#func-newofdefault>)
+  - [func NewTypedOf[K comparable, V any](hasher func(maphash.Seed, K) uint64, opts ...OptionOf[K, V]) CacheOf[K, V]](<#func-newtypedof>)
+  - [func NewTypedOfDefault[K comparable, V any](hasher func(maphash.Seed, K) uint64, defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[K, V]) CacheOf[K, V]](<#func-newtypedofdefault>)
 - [type Config](<#type-config>)
   - [func DefaultConfig() Config](<#func-defaultconfig>)
 - [type ConfigOf](<#type-configof>)
-  - [func DefaultConfigOf[V any]() ConfigOf[V]](<#func-defaultconfigof>)
+  - [func DefaultConfigOf[K comparable, V any]() ConfigOf[K, V]](<#func-defaultconfigof>)
 - [type EvictedCallback](<#type-evictedcallback>)
 - [type EvictedCallbackOf](<#type-evictedcallbackof>)
+- [type Hashable](<#type-hashable>)
+- [type IntegerConstraint](<#type-integerconstraint>)
 - [type Map](<#type-map>)
   - [func NewMap() Map](<#func-newmap>)
 - [type MapOf](<#type-mapof>)
-  - [func NewMapOf[V any]() MapOf[V]](<#func-newmapof>)
+  - [func NewHashMapOf[K comparable, V any](hasher ...func(maphash.Seed, K) uint64) MapOf[K, V]](<#func-newhashmapof>)
+  - [func NewIntegerMapOf[K IntegerConstraint, V any]() MapOf[K, V]](<#func-newintegermapof>)
+  - [func NewMapOf[V any]() MapOf[string, V]](<#func-newmapof>)
+  - [func NewTypedMapOf[K comparable, V any](hasher func(maphash.Seed, K) uint64) MapOf[K, V]](<#func-newtypedmapof>)
 - [type Option](<#type-option>)
   - [func WithCleanupInterval(interval time.Duration) Option](<#func-withcleanupinterval>)
   - [func WithDefaultExpiration(duration time.Duration) Option](<#func-withdefaultexpiration>)
   - [func WithEvictedCallback(ec EvictedCallback) Option](<#func-withevictedcallback>)
 - [type OptionOf](<#type-optionof>)
-  - [func WithCleanupIntervalOf[V any](interval time.Duration) OptionOf[V]](<#func-withcleanupintervalof>)
-  - [func WithDefaultExpirationOf[V any](duration time.Duration) OptionOf[V]](<#func-withdefaultexpirationof>)
-  - [func WithEvictedCallbackOf[V any](ec EvictedCallbackOf[V]) OptionOf[V]](<#func-withevictedcallbackof>)
+  - [func WithCleanupIntervalOf[K comparable, V any](interval time.Duration) OptionOf[K, V]](<#func-withcleanupintervalof>)
+  - [func WithDefaultExpirationOf[K comparable, V any](duration time.Duration) OptionOf[K, V]](<#func-withdefaultexpirationof>)
+  - [func WithEvictedCallbackOf[K comparable, V any](ec EvictedCallbackOf[K, V]) OptionOf[K, V]](<#func-withevictedcallbackof>)
 
 
 ## Constants
@@ -51,7 +69,59 @@ const (
 )
 ```
 
-## type Cache
+## func [FastRand](<https://github.com/fufuok/cache/blob/master/hash.go#L41>)
+
+```go
+func FastRand() uint32
+```
+
+## func [FastRandn](<https://github.com/fufuok/cache/blob/master/hash.go#L44>)
+
+```go
+func FastRandn(n uint32) uint32
+```
+
+## func [GenHasher64](<https://github.com/fufuok/cache/blob/master/hashof.go#L24>)
+
+```go
+func GenHasher64[K comparable]() func(K) uint64
+```
+
+GenHasher64 use xxHash\. Same as NewHashMapOf\, NewHashOf hashing algorithm
+
+## func [GenSeedHasher64](<https://github.com/fufuok/cache/blob/master/hashof.go#L28>)
+
+```go
+func GenSeedHasher64[K comparable]() func(maphash.Seed, K) uint64
+```
+
+## func [Hash64](<https://github.com/fufuok/cache/blob/master/hashof.go#L33>)
+
+```go
+func Hash64[T IntegerConstraint](seed maphash.Seed, v T) uint64
+```
+
+Hash64 calculates a hash of v with the given seed\.
+
+## func [HashString](<https://github.com/fufuok/cache/blob/master/hash.go#L18>)
+
+```go
+func HashString(seed maphash.Seed, s string) uint64
+```
+
+HashString calculates a hash of s with the given seed\.
+
+## func [StrHash64](<https://github.com/fufuok/cache/blob/master/hash.go#L27>)
+
+```go
+func StrHash64(s string) uint64
+```
+
+StrHash64 is the built\-in string hash function\. It might be handy when writing a hasher function for NewTypedMapOf\.
+
+Returned hash codes are is local to a single process and cannot be recreated in a different process\.
+
+## type [Cache](<https://github.com/fufuok/cache/blob/master/cache.go#L7-L95>)
 
 ```go
 type Cache interface {
@@ -72,40 +142,38 @@ type Cache interface {
     // Get an item from the cache.
     // Returns the item or nil,
     // and a boolean indicating whether the key was found.
-    Get(k string) (interface{}, bool)
+    Get(k string) (value interface{}, ok bool)
 
     // GetWithExpiration get an item from the cache.
     // Returns the item or nil,
     // along with the expiration time, and a boolean indicating whether the key was found.
-    GetWithExpiration(k string) (interface{}, time.Time, bool)
+    GetWithExpiration(k string) (value interface{}, expiration time.Time, ok bool)
 
     // GetWithTTL get an item from the cache.
     // Returns the item or nil,
     // with the remaining lifetime and a boolean indicating whether the key was found.
-    GetWithTTL(k string) (interface{}, time.Duration, bool)
+    GetWithTTL(k string) (value interface{}, ttl time.Duration, ok bool)
 
     // GetOrSet returns the existing value for the key if present.
     // Otherwise, it stores and returns the given value.
     // The loaded result is true if the value was loaded, false if stored.
-    GetOrSet(k string, v interface{}, d time.Duration) (interface{}, bool)
+    GetOrSet(k string, v interface{}, d time.Duration) (value interface{}, loaded bool)
 
     // GetAndSet returns the existing value for the key if present,
     // while setting the new value for the key.
     // Otherwise, it stores and returns the given value.
     // The loaded result is true if the value was loaded, false otherwise.
-    GetAndSet(k string, v interface{}, d time.Duration) (interface{}, bool)
+    GetAndSet(k string, v interface{}, d time.Duration) (value interface{}, loaded bool)
 
     // GetAndRefresh Get an item from the cache, and refresh the item's expiration time.
     // Returns the item or nil,
     // and a boolean indicating whether the key was found.
-    // Allows getting keys that have expired but not been evicted.
-    // Not atomic synchronization.
-    GetAndRefresh(k string, d time.Duration) (interface{}, bool)
+    GetAndRefresh(k string, d time.Duration) (value interface{}, loaded bool)
 
     // GetAndDelete Get an item from the cache, and delete the key.
     // Returns the item or nil,
     // and a boolean indicating whether the key was found.
-    GetAndDelete(k string) (interface{}, bool)
+    GetAndDelete(k string) (value interface{}, loaded bool)
 
     // Delete an item from the cache.
     // Does nothing if the key is not in the cache.
@@ -121,6 +189,9 @@ type Cache interface {
     // Items return the items in the cache.
     // This is a snapshot, which may include items that are about to expire.
     Items() map[string]interface{}
+
+    // Clear deletes all keys and values currently stored in the map.
+    Clear()
 
     // Count returns the number of items in the cache.
     // This may include items that have expired but have not been cleaned up.
@@ -144,88 +215,89 @@ type Cache interface {
 }
 ```
 
-### func New
+### func [New](<https://github.com/fufuok/cache/blob/master/cache.go#L97>)
 
 ```go
 func New(opts ...Option) Cache
 ```
 
-### func NewDefault
+### func [NewDefault](<https://github.com/fufuok/cache/blob/master/cache.go#L105-L109>)
 
 ```go
 func NewDefault(defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallback) Cache
 ```
 
-## type CacheOf
+## type [CacheOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L13-L101>)
 
 ```go
-type CacheOf[V any] interface {
+type CacheOf[K comparable, V any] interface {
     // Set add item to the cache, replacing any existing items.
     // (DefaultExpiration), the item uses a cached default expiration time.
     // (NoExpiration), the item never expires.
     // All values less than or equal to 0 are the same except DefaultExpiration,
     // which means never expires.
-    Set(k string, v V, d time.Duration)
+    Set(k K, v V, d time.Duration)
 
     // SetDefault add item to the cache with the default expiration time,
     // replacing any existing items.
-    SetDefault(k string, v V)
+    SetDefault(k K, v V)
 
     // SetForever add item to cache and set to never expire, replacing any existing items.
-    SetForever(k string, v V)
+    SetForever(k K, v V)
 
     // Get an item from the cache.
     // Returns the item or nil,
     // and a boolean indicating whether the key was found.
-    Get(k string) (V, bool)
+    Get(k K) (value V, ok bool)
 
     // GetWithExpiration get an item from the cache.
     // Returns the item or nil,
     // along with the expiration time, and a boolean indicating whether the key was found.
-    GetWithExpiration(k string) (V, time.Time, bool)
+    GetWithExpiration(k K) (value V, expiration time.Time, ok bool)
 
     // GetWithTTL get an item from the cache.
     // Returns the item or nil,
     // with the remaining lifetime and a boolean indicating whether the key was found.
-    GetWithTTL(k string) (V, time.Duration, bool)
+    GetWithTTL(k K) (value V, ttl time.Duration, ok bool)
 
     // GetOrSet returns the existing value for the key if present.
     // Otherwise, it stores and returns the given value.
     // The loaded result is true if the value was loaded, false if stored.
-    GetOrSet(k string, v V, d time.Duration) (V, bool)
+    GetOrSet(k K, v V, d time.Duration) (value V, loaded bool)
 
     // GetAndSet returns the existing value for the key if present,
     // while setting the new value for the key.
     // Otherwise, it stores and returns the given value.
     // The loaded result is true if the value was loaded, false otherwise.
-    GetAndSet(k string, v V, d time.Duration) (V, bool)
+    GetAndSet(k K, v V, d time.Duration) (value V, loaded bool)
 
     // GetAndRefresh Get an item from the cache, and refresh the item's expiration time.
     // Returns the item or nil,
     // and a boolean indicating whether the key was found.
-    // Allows getting keys that have expired but not been evicted.
-    // Not atomic synchronization.
-    GetAndRefresh(k string, d time.Duration) (V, bool)
+    GetAndRefresh(k K, d time.Duration) (value V, loaded bool)
 
     // GetAndDelete Get an item from the cache, and delete the key.
     // Returns the item or nil,
     // and a boolean indicating whether the key was found.
-    GetAndDelete(k string) (V, bool)
+    GetAndDelete(k K) (value V, loaded bool)
 
     // Delete an item from the cache.
     // Does nothing if the key is not in the cache.
-    Delete(k string)
+    Delete(k K)
 
     // DeleteExpired delete all expired items from the cache.
     DeleteExpired()
 
     // Range calls f sequentially for each key and value present in the map.
     // If f returns false, range stops the iteration.
-    Range(f func(k string, v V) bool)
+    Range(f func(k K, v V) bool)
 
     // Items return the items in the cache.
     // This is a snapshot, which may include items that are about to expire.
-    Items() map[string]V
+    Items() map[K]V
+
+    // Clear deletes all keys and values currently stored in the map.
+    Clear()
 
     // Count returns the number of items in the cache.
     // This may include items that have expired but have not been cleaned up.
@@ -240,28 +312,64 @@ type CacheOf[V any] interface {
 
     // EvictedCallback returns the callback function to execute
     // when a key-value pair expires and is evicted.
-    EvictedCallback() EvictedCallbackOf[V]
+    EvictedCallback() EvictedCallbackOf[K, V]
 
     // SetEvictedCallback Set the callback function to be executed
     // when the key-value pair expires and is evicted.
     // Atomic safety.
-    SetEvictedCallback(evictedCallback EvictedCallbackOf[V])
+    SetEvictedCallback(evictedCallback EvictedCallbackOf[K, V])
 }
 ```
 
-### func NewOf
+### func [NewHashOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L111>)
 
 ```go
-func NewOf[V any](opts ...OptionOf[V]) CacheOf[V]
+func NewHashOf[K comparable, V any](opts ...OptionOf[K, V]) CacheOf[K, V]
 ```
 
-### func NewOfDefault
+### func [NewHashOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L140-L144>)
 
 ```go
-func NewOfDefault[V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[V]) CacheOf[V]
+func NewHashOfDefault[K comparable, V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[K, V]) CacheOf[K, V]
 ```
 
-## type Config
+### func [NewIntegerOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L107>)
+
+```go
+func NewIntegerOf[K IntegerConstraint, V any](opts ...OptionOf[K, V]) CacheOf[K, V]
+```
+
+### func [NewIntegerOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L132-L136>)
+
+```go
+func NewIntegerOfDefault[K IntegerConstraint, V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[K, V]) CacheOf[K, V]
+```
+
+### func [NewOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L103>)
+
+```go
+func NewOf[V any](opts ...OptionOf[string, V]) CacheOf[string, V]
+```
+
+### func [NewOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L124-L128>)
+
+```go
+func NewOfDefault[V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[string, V]) CacheOf[string, V]
+```
+
+### func [NewTypedOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L116>)
+
+```go
+func NewTypedOf[K comparable, V any](hasher func(maphash.Seed, K) uint64, opts ...OptionOf[K, V]) CacheOf[K, V]
+```
+
+### func [NewTypedOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L149-L154>)
+
+```go
+func NewTypedOfDefault[K comparable, V any](hasher func(maphash.Seed, K) uint64, defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[K, V]) CacheOf[K, V]
+```
+
+## type [Config](<https://github.com/fufuok/cache/blob/master/config.go#L23-L32>)
 
 ```go
 type Config struct {
@@ -276,16 +384,16 @@ type Config struct {
 }
 ```
 
-### func DefaultConfig
+### func [DefaultConfig](<https://github.com/fufuok/cache/blob/master/config.go#L34>)
 
 ```go
 func DefaultConfig() Config
 ```
 
-## type ConfigOf
+## type [ConfigOf](<https://github.com/fufuok/cache/blob/master/configof.go#L14-L23>)
 
 ```go
-type ConfigOf[V any] struct {
+type ConfigOf[K comparable, V any] struct {
     // DefaultExpiration default expiration time for key-value pairs.
     DefaultExpiration time.Duration
 
@@ -293,17 +401,17 @@ type ConfigOf[V any] struct {
     CleanupInterval time.Duration
 
     // EvictedCallback executed when the key-value pair expires.
-    EvictedCallback EvictedCallbackOf[V]
+    EvictedCallback EvictedCallbackOf[K, V]
 }
 ```
 
-### func DefaultConfigOf
+### func [DefaultConfigOf](<https://github.com/fufuok/cache/blob/master/configof.go#L25>)
 
 ```go
-func DefaultConfigOf[V any]() ConfigOf[V]
+func DefaultConfigOf[K comparable, V any]() ConfigOf[K, V]
 ```
 
-## type EvictedCallback
+## type [EvictedCallback](<https://github.com/fufuok/cache/blob/master/config.go#L21>)
 
 EvictedCallback callback function to execute when the key\-value pair expires and is evicted\. Warning: cannot block\, it is recommended to use goroutine\.
 
@@ -311,57 +419,105 @@ EvictedCallback callback function to execute when the key\-value pair expires an
 type EvictedCallback func(k string, v interface{})
 ```
 
-## type EvictedCallbackOf
+## type [EvictedCallbackOf](<https://github.com/fufuok/cache/blob/master/configof.go#L12>)
 
 EvictedCallbackOf callback function to execute when the key\-value pair expires and is evicted\. Warning: cannot block\, it is recommended to use goroutine\.
 
 ```go
-type EvictedCallbackOf[V any] func(k string, v V)
+type EvictedCallbackOf[K comparable, V any] func(k K, v V)
 ```
 
-## type Map
+## type [Hashable](<https://github.com/fufuok/cache/blob/master/hashof.go#L17-L20>)
+
+Hashable allowed map key types constraint
+
+```go
+type Hashable interface {
+    // contains filtered or unexported methods
+}
+```
+
+## type [IntegerConstraint](<https://github.com/fufuok/cache/blob/master/hashof.go#L14>)
+
+IntegerConstraint represents any integer type\.
+
+```go
+type IntegerConstraint interface{ xsync.IntegerConstraint }
+```
+
+## type [Map](<https://github.com/fufuok/cache/blob/master/map.go#L7-L73>)
 
 ```go
 type Map interface {
-    // Store add item to the cache, replacing any existing items.
-    Store(k string, v interface{})
+    // Load returns the value stored in the map for a key, or nil if no
+    // value is present.
+    // The ok result indicates whether value was found in the map.
+    Load(key string) (value interface{}, ok bool)
 
-    // Load an item from the cache.
-    // Returns the item or nil,
-    // and a boolean indicating whether the key was found.
-    Load(k string) (interface{}, bool)
+    // Store sets the value for a key.
+    Store(key string, value interface{})
 
     // LoadOrStore returns the existing value for the key if present.
     // Otherwise, it stores and returns the given value.
     // The loaded result is true if the value was loaded, false if stored.
-    LoadOrStore(k string, v interface{}) (interface{}, bool)
+    LoadOrStore(key string, value interface{}) (actual interface{}, loaded bool)
 
     // LoadAndStore returns the existing value for the key if present,
     // while setting the new value for the key.
-    // Otherwise, it stores and returns the given value.
-    // The loaded result is true if the value was loaded, false otherwise.
-    LoadAndStore(k string, v interface{}) (interface{}, bool)
+    // It stores the new value and returns the existing one, if present.
+    // The loaded result is true if the existing value was loaded,
+    // false otherwise.
+    LoadAndStore(key string, value interface{}) (actual interface{}, loaded bool)
 
-    // LoadAndDelete Get an item from the cache, and delete the key.
-    // Returns the item or nil,
-    // and a boolean indicating whether the key was found.
-    LoadAndDelete(k string) (interface{}, bool)
+    // LoadOrCompute returns the existing value for the key if present.
+    // Otherwise, it computes the value using the provided function and
+    // returns the computed value. The loaded result is true if the value
+    // was loaded, false if stored.
+    LoadOrCompute(key string, valueFn func() interface{}) (actual interface{}, loaded bool)
 
-    // Delete an item from the cache.
-    // Does nothing if the key is not in the cache.
-    Delete(k string)
+    // Compute either sets the computed new value for the key or deletes
+    // the value for the key. When the delete result of the valueFn function
+    // is set to true, the value will be deleted, if it exists. When delete
+    // is set to false, the value is updated to the newValue.
+    // The ok result indicates whether value was computed and stored, thus, is
+    // present in the map. The actual result contains the new value in cases where
+    // the value was computed and stored. See the example for a few use cases.
+    Compute(
+        key string,
+        valueFn func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool),
+    ) (actual interface{}, ok bool)
 
-    // Range calls f sequentially for each key and value present in the map.
-    // If f returns false, range stops the iteration.
-    Range(f func(k string, v interface{}) bool)
+    // LoadAndDelete deletes the value for a key, returning the previous
+    // value if any. The loaded result reports whether the key was
+    // present.
+    LoadAndDelete(key string) (value interface{}, loaded bool)
 
-    // Size returns the number of items in the cache.
-    // This may include items that have expired but have not been cleaned up.
+    // Delete deletes the value for a key.
+    Delete(key string)
+
+    // Range calls f sequentially for each key and value present in the
+    // map. If f returns false, range stops the iteration.
+    //
+    // Range does not necessarily correspond to any consistent snapshot
+    // of the Map's contents: no key will be visited more than once, but
+    // if the value for any key is stored or deleted concurrently, Range
+    // may reflect any mapping for that key from any point during the
+    // Range call.
+    //
+    // It is safe to modify the map while iterating it. However, the
+    // concurrent modification rule apply, i.e. the changes may be not
+    // reflected in the subsequently iterated entries.
+    Range(f func(key string, value interface{}) bool)
+
+    // Clear deletes all keys and values currently stored in the map.
+    Clear()
+
+    // Size returns current size of the map.
     Size() int
 }
 ```
 
-### func NewMap
+### func [NewMap](<https://github.com/fufuok/cache/blob/master/map.go#L76>)
 
 ```go
 func NewMap() Map
@@ -369,102 +525,163 @@ func NewMap() Map
 
 NewMap the keys never expire\, similar to the use of sync\.Map\.
 
-## type MapOf
+## type [MapOf](<https://github.com/fufuok/cache/blob/master/mapof.go#L12-L78>)
 
 ```go
-type MapOf[V any] interface {
-    // Store add item to the cache, replacing any existing items.
-    Store(k string, v V)
+type MapOf[K comparable, V any] interface {
+    // Load returns the value stored in the map for a key, or nil if no
+    // value is present.
+    // The ok result indicates whether value was found in the map.
+    Load(key K) (value V, ok bool)
 
-    // Load an item from the cache.
-    // Returns the item or nil,
-    // and a boolean indicating whether the key was found.
-    Load(k string) (V, bool)
+    // Store sets the value for a key.
+    Store(key K, value V)
 
     // LoadOrStore returns the existing value for the key if present.
     // Otherwise, it stores and returns the given value.
     // The loaded result is true if the value was loaded, false if stored.
-    LoadOrStore(k string, v V) (V, bool)
+    LoadOrStore(key K, value V) (actual V, loaded bool)
 
     // LoadAndStore returns the existing value for the key if present,
     // while setting the new value for the key.
-    // Otherwise, it stores and returns the given value.
-    // The loaded result is true if the value was loaded, false otherwise.
-    LoadAndStore(k string, v V) (V, bool)
+    // It stores the new value and returns the existing one, if present.
+    // The loaded result is true if the existing value was loaded,
+    // false otherwise.
+    LoadAndStore(key K, value V) (actual V, loaded bool)
 
-    // LoadAndDelete Get an item from the cache, and delete the key.
-    // Returns the item or nil,
-    // and a boolean indicating whether the key was found.
-    LoadAndDelete(k string) (V, bool)
+    // LoadOrCompute returns the existing value for the key if present.
+    // Otherwise, it computes the value using the provided function and
+    // returns the computed value. The loaded result is true if the value
+    // was loaded, false if stored.
+    LoadOrCompute(key K, valueFn func() V) (actual V, loaded bool)
 
-    // Delete an item from the cache.
-    // Does nothing if the key is not in the cache.
-    Delete(k string)
+    // Compute either sets the computed new value for the key or deletes
+    // the value for the key. When the delete result of the valueFn function
+    // is set to true, the value will be deleted, if it exists. When delete
+    // is set to false, the value is updated to the newValue.
+    // The ok result indicates whether value was computed and stored, thus, is
+    // present in the map. The actual result contains the new value in cases where
+    // the value was computed and stored. See the example for a few use cases.
+    Compute(
+        key K,
+        valueFn func(oldValue V, loaded bool) (newValue V, delete bool),
+    ) (actual V, ok bool)
 
-    // Range calls f sequentially for each key and value present in the map.
-    // If f returns false, range stops the iteration.
-    Range(f func(k string, v V) bool)
+    // LoadAndDelete deletes the value for a key, returning the previous
+    // value if any. The loaded result reports whether the key was
+    // present.
+    LoadAndDelete(key K) (value V, loaded bool)
 
-    // Size returns the number of items in the cache.
-    // This may include items that have expired but have not been cleaned up.
+    // Delete deletes the value for a key.
+    Delete(key K)
+
+    // Range calls f sequentially for each key and value present in the
+    // map. If f returns false, range stops the iteration.
+    //
+    // Range does not necessarily correspond to any consistent snapshot
+    // of the Map's contents: no key will be visited more than once, but
+    // if the value for any key is stored or deleted concurrently, Range
+    // may reflect any mapping for that key from any point during the
+    // Range call.
+    //
+    // It is safe to modify the map while iterating it. However, the
+    // concurrent modification rule apply, i.e. the changes may be not
+    // reflected in the subsequently iterated entries.
+    Range(f func(key K, value V) bool)
+
+    // Clear deletes all keys and values currently stored in the map.
+    Clear()
+
+    // Size returns current size of the map.
     Size() int
 }
 ```
 
-### func NewMapOf
+### func [NewHashMapOf](<https://github.com/fufuok/cache/blob/master/mapof.go#L100>)
 
 ```go
-func NewMapOf[V any]() MapOf[V]
+func NewHashMapOf[K comparable, V any](hasher ...func(maphash.Seed, K) uint64) MapOf[K, V]
 ```
 
-NewMapOf the keys never expire\, similar to the use of sync\.Map\.
+NewHashMapOf creates a new HashMapOf instance with arbitrarily typed keys\. If no hasher is specified\, an automatic generation will be attempted\. Hashable allowed map key types constraint\. Automatically generated hashes for these types are safe:
 
-## type Option
+```
+type Hashable interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
+	~float32 | ~float64 | ~string | ~complex64 | ~complex128
+}
+```
+
+### func [NewIntegerMapOf](<https://github.com/fufuok/cache/blob/master/mapof.go#L87>)
+
+```go
+func NewIntegerMapOf[K IntegerConstraint, V any]() MapOf[K, V]
+```
+
+NewIntegerMapOf creates a new HashMapOf instance with integer typed keys\.
+
+### func [NewMapOf](<https://github.com/fufuok/cache/blob/master/mapof.go#L82>)
+
+```go
+func NewMapOf[V any]() MapOf[string, V]
+```
+
+NewMapOf creates a new HashMapOf instance with string keys\. The keys never expire\, similar to the use of sync\.Map\.
+
+### func [NewTypedMapOf](<https://github.com/fufuok/cache/blob/master/mapof.go#L108>)
+
+```go
+func NewTypedMapOf[K comparable, V any](hasher func(maphash.Seed, K) uint64) MapOf[K, V]
+```
+
+NewTypedMapOf creates a new HashMapOf instance with arbitrarily typed keys\. Keys are hashed to uint64 using the hasher function\. Note that StrHash64 function might be handy when writing the hasher function for structs with string fields\.
+
+## type [Option](<https://github.com/fufuok/cache/blob/master/options.go#L7>)
 
 ```go
 type Option func(config *Config)
 ```
 
-### func WithCleanupInterval
+### func [WithCleanupInterval](<https://github.com/fufuok/cache/blob/master/options.go#L15>)
 
 ```go
 func WithCleanupInterval(interval time.Duration) Option
 ```
 
-### func WithDefaultExpiration
+### func [WithDefaultExpiration](<https://github.com/fufuok/cache/blob/master/options.go#L9>)
 
 ```go
 func WithDefaultExpiration(duration time.Duration) Option
 ```
 
-### func WithEvictedCallback
+### func [WithEvictedCallback](<https://github.com/fufuok/cache/blob/master/options.go#L21>)
 
 ```go
 func WithEvictedCallback(ec EvictedCallback) Option
 ```
 
-## type OptionOf
+## type [OptionOf](<https://github.com/fufuok/cache/blob/master/optionsof.go#L10>)
 
 ```go
-type OptionOf[V any] func(config *ConfigOf[V])
+type OptionOf[K comparable, V any] func(config *ConfigOf[K, V])
 ```
 
-### func WithCleanupIntervalOf
+### func [WithCleanupIntervalOf](<https://github.com/fufuok/cache/blob/master/optionsof.go#L18>)
 
 ```go
-func WithCleanupIntervalOf[V any](interval time.Duration) OptionOf[V]
+func WithCleanupIntervalOf[K comparable, V any](interval time.Duration) OptionOf[K, V]
 ```
 
-### func WithDefaultExpirationOf
+### func [WithDefaultExpirationOf](<https://github.com/fufuok/cache/blob/master/optionsof.go#L12>)
 
 ```go
-func WithDefaultExpirationOf[V any](duration time.Duration) OptionOf[V]
+func WithDefaultExpirationOf[K comparable, V any](duration time.Duration) OptionOf[K, V]
 ```
 
-### func WithEvictedCallbackOf
+### func [WithEvictedCallbackOf](<https://github.com/fufuok/cache/blob/master/optionsof.go#L24>)
 
 ```go
-func WithEvictedCallbackOf[V any](ec EvictedCallbackOf[V]) OptionOf[V]
+func WithEvictedCallbackOf[K comparable, V any](ec EvictedCallbackOf[K, V]) OptionOf[K, V]
 ```
 
 

@@ -4,6 +4,7 @@
 package cache
 
 import (
+	"hash/maphash"
 	"reflect"
 	"strconv"
 	"sync/atomic"
@@ -11,15 +12,29 @@ import (
 	"time"
 )
 
-func mockCacheOf(opts ...OptionOf[any]) CacheOf[any] {
+var (
+	testKVOf = []kvOf[string, any]{
+		{"string", "s"},
+		{"int", 1},
+		{"int32", int32(32)},
+		{"int64", int64(64)},
+		{"float32", float32(3.14)},
+		{"float64", 3.14},
+		{"nil", nil},
+		{"pointer", &t1},
+		{"struct", t2},
+	}
+)
+
+func mockCacheOf(opts ...OptionOf[string, any]) CacheOf[string, any] {
 	if len(opts) == 0 {
-		opts = []OptionOf[any]{
-			WithDefaultExpirationOf[any](testDefaultExpiration),
-			WithCleanupIntervalOf[any](testCleanupInterval),
+		opts = []OptionOf[string, any]{
+			WithDefaultExpirationOf[string, any](testDefaultExpiration),
+			WithCleanupIntervalOf[string, any](testCleanupInterval),
 		}
 	}
 	c := NewOf[any](opts...)
-	for _, x := range testKV {
+	for _, x := range testKVOf {
 		c.SetDefault(x.k, x.v)
 	}
 	c.Set("70ms", 1, 70*time.Millisecond)
@@ -27,47 +42,122 @@ func mockCacheOf(opts ...OptionOf[any]) CacheOf[any] {
 }
 
 func TestCacheOf_Expire(t *testing.T) {
-	c := NewOfDefault[int](20*time.Millisecond, 1*time.Millisecond)
-	c.Set("a", 1, 0)
-	c.Set("b", 2, DefaultExpiration)
-	c.Set("c", 3, NoExpiration)
-	c.Set("d", 4, 20*time.Millisecond)
-	c.Set("e", 5, 100*time.Millisecond)
+	exp := 20 * time.Millisecond
+	interval := 1 * time.Millisecond
+	opts := []OptionOf[string, int]{
+		WithDefaultExpirationOf[string, int](exp),
+		WithCleanupIntervalOf[string, int](interval),
+	}
+	hasher := func(_ maphash.Seed, k string) uint64 {
+		return StrHash64(k)
+	}
+	caches := []CacheOf[string, int]{
+		NewOf[int](opts...),
+		NewOfDefault[int](exp, interval),
+		NewHashOf[string, int](opts...),
+		NewHashOfDefault[string, int](exp, interval),
+		NewTypedOf[string, int](hasher, opts...),
+		NewTypedOfDefault[string, int](hasher, exp, interval),
+	}
+	for _, c := range caches {
+		c.Set("a", 1, 0)
+		c.Set("b", 2, DefaultExpiration)
+		c.Set("c", 3, NoExpiration)
+		c.Set("d", 4, 20*time.Millisecond)
+		c.Set("e", 5, 100*time.Millisecond)
 
-	<-time.After(25 * time.Millisecond)
-	_, ok := c.Get("d")
-	if ok {
-		t.Fatal("key d should be automatically deleted")
-	}
+		<-time.After(25 * time.Millisecond)
+		_, ok := c.Get("d")
+		if ok {
+			t.Fatal("key d should be automatically deleted")
+		}
 
-	<-time.After(30 * time.Millisecond)
-	_, ok = c.Get("b")
-	if ok {
-		t.Fatal("key b should be automatically deleted")
-	}
-	_, ok = c.Get("a")
-	if !ok {
-		t.Fatal("key a is set to never expire, but not found")
-	}
-	_, ok = c.Get("c")
-	if !ok {
-		t.Fatal("key c is set to never expire, but not found")
-	}
-	_, ok = c.Get("e")
-	if !ok {
-		t.Fatal("key e has not expired but was not found")
-	}
+		<-time.After(30 * time.Millisecond)
+		_, ok = c.Get("b")
+		if ok {
+			t.Fatal("key b should be automatically deleted")
+		}
+		_, ok = c.Get("a")
+		if !ok {
+			t.Fatal("key a is set to never expire, but not found")
+		}
+		_, ok = c.Get("c")
+		if !ok {
+			t.Fatal("key c is set to never expire, but not found")
+		}
+		_, ok = c.Get("e")
+		if !ok {
+			t.Fatal("key e has not expired but was not found")
+		}
 
-	<-time.After(50 * time.Millisecond)
-	_, ok = c.Get("e")
-	if ok {
-		t.Fatal("key e should be automatically deleted")
+		<-time.After(50 * time.Millisecond)
+		_, ok = c.Get("e")
+		if ok {
+			t.Fatal("key e should be automatically deleted")
+		}
+	}
+}
+
+func TestCacheOf_Integer_Expire(t *testing.T) {
+	exp := 20 * time.Millisecond
+	interval := 1 * time.Millisecond
+	opts := []OptionOf[int, int]{
+		WithDefaultExpirationOf[int, int](exp),
+		WithCleanupIntervalOf[int, int](interval),
+	}
+	hasher := func(_ maphash.Seed, k int) uint64 {
+		return uint64(k)
+	}
+	caches := []CacheOf[int, int]{
+		NewIntegerOf[int, int](opts...),
+		NewIntegerOfDefault[int, int](exp, interval),
+		NewHashOf[int, int](opts...),
+		NewHashOfDefault[int, int](exp, interval),
+		NewTypedOf[int, int](hasher, opts...),
+		NewTypedOfDefault[int, int](hasher, exp, interval),
+	}
+	for _, c := range caches {
+		c.Set(1, 1, 0)
+		c.Set(2, 2, DefaultExpiration)
+		c.Set(3, 3, NoExpiration)
+		c.Set(4, 4, 20*time.Millisecond)
+		c.Set(5, 5, 100*time.Millisecond)
+
+		<-time.After(25 * time.Millisecond)
+		_, ok := c.Get(4)
+		if ok {
+			t.Fatal("key 4 should be automatically deleted")
+		}
+
+		<-time.After(30 * time.Millisecond)
+		_, ok = c.Get(2)
+		if ok {
+			t.Fatal("key 2 should be automatically deleted")
+		}
+		_, ok = c.Get(1)
+		if !ok {
+			t.Fatal("key 1 is set to never expire, but not found")
+		}
+		_, ok = c.Get(3)
+		if !ok {
+			t.Fatal("key 3 is set to never expire, but not found")
+		}
+		_, ok = c.Get(5)
+		if !ok {
+			t.Fatal("key 5 has not expired but was not found")
+		}
+
+		<-time.After(50 * time.Millisecond)
+		_, ok = c.Get(5)
+		if ok {
+			t.Fatal("key 5 should be automatically deleted")
+		}
 	}
 }
 
 func TestCacheOf_SetAndGet(t *testing.T) {
 	c := mockCacheOf()
-	for _, x := range testKV {
+	for _, x := range testKVOf {
 		v, ok := c.Get(x.k)
 		if !ok {
 			t.Fatalf("key `%s` should have a value: %v", x.k, x.v)
@@ -251,6 +341,70 @@ func TestCacheOf_DeleteExpired(t *testing.T) {
 	v, ok := c.Get("1")
 	if ok || v != 0 {
 		t.Fatal("key 1 should have expired, but was fetched")
+	}
+}
+
+func countBasedOnTypedRange(c CacheOf[string, int]) int {
+	size := 0
+	c.Range(func(key string, value int) bool {
+		size++
+		return true
+	})
+	return size
+}
+
+func TestCacheOf_Size(t *testing.T) {
+	const numEntries = 1000
+	c := NewOf[int]()
+	size := c.Count()
+	if size != 0 {
+		t.Errorf("zero size expected: %d", size)
+	}
+	expectedSize := 0
+	for i := 0; i < numEntries; i++ {
+		c.SetDefault(strconv.Itoa(i), i)
+		expectedSize++
+		size := c.Count()
+		if size != expectedSize {
+			t.Errorf("size of %d was expected, got: %d", expectedSize, size)
+		}
+		rsize := countBasedOnTypedRange(c)
+		if size != rsize {
+			t.Errorf("size does not match number of entries in Range: %v, %v", size, rsize)
+		}
+	}
+	for i := 0; i < numEntries; i++ {
+		c.Delete(strconv.Itoa(i))
+		expectedSize--
+		size := c.Count()
+		if size != expectedSize {
+			t.Errorf("size of %d was expected, got: %d", expectedSize, size)
+		}
+		rsize := countBasedOnTypedRange(c)
+		if size != rsize {
+			t.Errorf("size does not match number of entries in Range: %v, %v", size, rsize)
+		}
+	}
+}
+
+func TestCacheOf_Clear(t *testing.T) {
+	const numEntries = 1000
+	c := NewOf[int]()
+	for i := 0; i < numEntries; i++ {
+		c.SetDefault(strconv.Itoa(i), i)
+	}
+	size := c.Count()
+	if size != numEntries {
+		t.Errorf("size of %d was expected, got: %d", numEntries, size)
+	}
+	c.Clear()
+	size = c.Count()
+	if size != 0 {
+		t.Errorf("zero size was expected, got: %d", size)
+	}
+	rsize := countBasedOnTypedRange(c)
+	if rsize != 0 {
+		t.Errorf("zero number of entries in Range was expected, got: %d", rsize)
 	}
 }
 

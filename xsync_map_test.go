@@ -62,6 +62,22 @@ func TestXsyncMap_Expire(t *testing.T) {
 	if ok {
 		t.Fatal("key e should be automatically deleted")
 	}
+
+	var v interface{}
+	v, ok = c.GetOrSet("e", 6, 50*time.Millisecond)
+	if ok || v.(int) != 6 {
+		t.Fatalf("key e should not be loaded, expected result is 6, got: %v", v)
+	}
+	v, ok = c.GetAndSet("e", 7, 150*time.Millisecond)
+	if !ok || v.(int) != 6 {
+		t.Fatalf("key e should be loaded, expected result is 6, got: %v", v)
+	}
+
+	var ttl time.Duration
+	v, ttl, ok = c.GetWithTTL("e")
+	if !ok || v.(int) != 7 || ttl < 100*time.Millisecond {
+		t.Fatalf("key e should be loaded, expected result is 7, got: %v, ttl: %s", v, ttl)
+	}
 }
 
 func TestXsyncMap_SetAndGet(t *testing.T) {
@@ -127,46 +143,61 @@ func TestXsyncMap_SetForever(t *testing.T) {
 }
 
 func TestXsyncMap_GetOrSet(t *testing.T) {
-	c := newXsyncMap()
-	v, ok := c.GetOrSet("x", 1, testDefaultExpiration)
+	exp := 20 * time.Millisecond
+	c := newXsyncMapDefault(20*time.Millisecond, testCleanupInterval)
+	v, ok := c.GetOrSet("x", 1, 0)
 	if ok {
 		t.Fatal("key x should not loaded")
 	}
 	x, ok := v.(int)
 	if !ok || x != 1 {
-		t.Fatalf("key x, expected %d, got %d", 1, v)
+		t.Fatalf("key x, expected %d, got %v", 1, x)
 	}
 
-	v, ok = c.GetOrSet("x", 2, testDefaultExpiration)
+	time.Sleep(exp * 2)
+
+	v, ok = c.GetOrSet("x", 2, exp)
 	if !ok || v.(int) != 1 {
-		t.Fatalf("key x, expected %d, got %d", 1, v)
+		t.Fatalf("key x, expected %d, got %v", 1, v)
 	}
+
+	time.Sleep(exp * 2)
 
 	y, ok := c.Get("x")
 	if !ok || y.(int) != 1 {
-		t.Fatalf("key x, expected %d, got %d", 1, y)
+		t.Fatalf("key x, expected %d, got %v", 1, y)
 	}
 }
 
 func TestXsyncMap_GetAndSet(t *testing.T) {
-	c := newXsyncMap()
-	v, ok := c.GetAndSet("x", 1, testDefaultExpiration)
+	exp := 20 * time.Millisecond
+	c := newXsyncMapDefault(20*time.Millisecond, testCleanupInterval)
+	v, ok := c.GetAndSet("x", 1, 0)
 	if ok {
 		t.Fatal("key x should not loaded")
 	}
 	x, ok := v.(int)
 	if !ok || x != 1 {
-		t.Fatalf("key x, expected %d, got %d", 1, v)
+		t.Fatalf("key x, expected %d, got %v", 1, x)
 	}
 
-	v, ok = c.GetAndSet("x", 2, testDefaultExpiration)
+	time.Sleep(exp * 2)
+
+	v, ok = c.GetAndSet("x", 2, exp)
 	if !ok || v.(int) != 1 {
-		t.Fatalf("key x, expected %d, got %d", 1, v)
+		t.Fatalf("key x, expected %d, got %v", 1, v)
 	}
 
 	y, ok := c.Get("x")
 	if !ok || y.(int) != 2 {
-		t.Fatalf("key x, expected %d, got %d", 2, y)
+		t.Fatalf("key x, expected %d, got %v", 2, y)
+	}
+
+	time.Sleep(exp * 2)
+
+	_, ok = c.Get("x")
+	if ok {
+		t.Fatal("key x should not loaded")
 	}
 }
 
@@ -184,7 +215,11 @@ func TestXsyncMap_GetAndRefresh(t *testing.T) {
 		t.Fatalf("key X lifetime is incorrect, expected <= 50ms, got %d", ttl)
 	}
 
-	c.GetAndRefresh("x", 1*time.Second)
+	v, ok = c.GetAndRefresh("x", 800*time.Millisecond)
+	if !ok || v.(int) != 1 {
+		t.Fatalf("expect the result to be true and the value to be 1, got %d", v)
+	}
+
 	v, ttl, ok = c.GetWithTTL("x")
 	if !ok || v == nil || ttl < 500*time.Millisecond {
 		t.Fatalf("key X lifetime is incorrect, expected >= 500ms, got %d", ttl)
@@ -192,6 +227,16 @@ func TestXsyncMap_GetAndRefresh(t *testing.T) {
 	v, tm, ok = c.GetWithExpiration("x")
 	if !ok || v == nil || v.(int) != 1 || tm.Before(time.Now()) {
 		t.Fatal("failed to get the value and expiration time of key x")
+	}
+
+	<-time.After(1 * time.Second)
+	v, ok = c.GetAndRefresh("x", 1*time.Second)
+	if ok || v != nil {
+		t.Fatalf("expect the result to be false and the value to be nil, got %v", v)
+	}
+	v, ttl, ok = c.GetWithTTL("x")
+	if ok || v != nil || ttl != 0 {
+		t.Fatalf("expect the result to be false and the value to be nil, got %v, ttl: %s", v, ttl)
 	}
 }
 

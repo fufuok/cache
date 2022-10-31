@@ -9,9 +9,9 @@ import (
 
 // EvictedCallbackOf callback function to execute when the key-value pair expires and is evicted.
 // Warning: cannot block, it is recommended to use goroutine.
-type EvictedCallbackOf[V any] func(k string, v V)
+type EvictedCallbackOf[K comparable, V any] func(k K, v V)
 
-type ConfigOf[V any] struct {
+type ConfigOf[K comparable, V any] struct {
 	// DefaultExpiration default expiration time for key-value pairs.
 	DefaultExpiration time.Duration
 
@@ -19,11 +19,11 @@ type ConfigOf[V any] struct {
 	CleanupInterval time.Duration
 
 	// EvictedCallback executed when the key-value pair expires.
-	EvictedCallback EvictedCallbackOf[V]
+	EvictedCallback EvictedCallbackOf[K, V]
 }
 
-func DefaultConfigOf[V any]() ConfigOf[V] {
-	return ConfigOf[V]{
+func DefaultConfigOf[K comparable, V any]() ConfigOf[K, V] {
+	return ConfigOf[K, V]{
 		DefaultExpiration: NoExpiration,
 		CleanupInterval:   DefaultCleanupInterval,
 		EvictedCallback:   nil,
@@ -31,9 +31,9 @@ func DefaultConfigOf[V any]() ConfigOf[V] {
 }
 
 // Helper function to set default values.
-func configDefaultOf[V any](config ...ConfigOf[V]) ConfigOf[V] {
+func configDefaultOf[K comparable, V any](config ...ConfigOf[K, V]) ConfigOf[K, V] {
 	if len(config) < 1 {
-		return DefaultConfigOf[V]()
+		return DefaultConfigOf[K, V]()
 	}
 
 	cfg := config[0]

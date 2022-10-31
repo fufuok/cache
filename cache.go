@@ -22,40 +22,38 @@ type Cache interface {
 	// Get an item from the cache.
 	// Returns the item or nil,
 	// and a boolean indicating whether the key was found.
-	Get(k string) (interface{}, bool)
+	Get(k string) (value interface{}, ok bool)
 
 	// GetWithExpiration get an item from the cache.
 	// Returns the item or nil,
 	// along with the expiration time, and a boolean indicating whether the key was found.
-	GetWithExpiration(k string) (interface{}, time.Time, bool)
+	GetWithExpiration(k string) (value interface{}, expiration time.Time, ok bool)
 
 	// GetWithTTL get an item from the cache.
 	// Returns the item or nil,
 	// with the remaining lifetime and a boolean indicating whether the key was found.
-	GetWithTTL(k string) (interface{}, time.Duration, bool)
+	GetWithTTL(k string) (value interface{}, ttl time.Duration, ok bool)
 
 	// GetOrSet returns the existing value for the key if present.
 	// Otherwise, it stores and returns the given value.
 	// The loaded result is true if the value was loaded, false if stored.
-	GetOrSet(k string, v interface{}, d time.Duration) (interface{}, bool)
+	GetOrSet(k string, v interface{}, d time.Duration) (value interface{}, loaded bool)
 
 	// GetAndSet returns the existing value for the key if present,
 	// while setting the new value for the key.
 	// Otherwise, it stores and returns the given value.
 	// The loaded result is true if the value was loaded, false otherwise.
-	GetAndSet(k string, v interface{}, d time.Duration) (interface{}, bool)
+	GetAndSet(k string, v interface{}, d time.Duration) (value interface{}, loaded bool)
 
 	// GetAndRefresh Get an item from the cache, and refresh the item's expiration time.
 	// Returns the item or nil,
 	// and a boolean indicating whether the key was found.
-	// Allows getting keys that have expired but not been evicted.
-	// Not atomic synchronization.
-	GetAndRefresh(k string, d time.Duration) (interface{}, bool)
+	GetAndRefresh(k string, d time.Duration) (value interface{}, loaded bool)
 
 	// GetAndDelete Get an item from the cache, and delete the key.
 	// Returns the item or nil,
 	// and a boolean indicating whether the key was found.
-	GetAndDelete(k string) (interface{}, bool)
+	GetAndDelete(k string) (value interface{}, loaded bool)
 
 	// Delete an item from the cache.
 	// Does nothing if the key is not in the cache.
@@ -71,6 +69,9 @@ type Cache interface {
 	// Items return the items in the cache.
 	// This is a snapshot, which may include items that are about to expire.
 	Items() map[string]interface{}
+
+	// Clear deletes all keys and values currently stored in the map.
+	Clear()
 
 	// Count returns the number of items in the cache.
 	// This may include items that have expired but have not been cleaned up.

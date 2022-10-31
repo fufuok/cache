@@ -102,21 +102,38 @@ func (c *xsyncMap) SetForever(k string, v interface{}) {
 // Returns the item or nil,
 // and a boolean indicating whether the key was found.
 func (c *xsyncMap) Get(k string) (interface{}, bool) {
-	if i, ok := c.get(k); ok {
-		return i.v, true
+	if v, ok := c.get(k); ok {
+		return v.(item).v, true
 	}
 	return nil, false
 }
 
-func (c *xsyncMap) get(k string) (item, bool) {
+func (c *xsyncMap) get(k string) (interface{}, bool) {
 	v, ok := c.items.Load(k)
 	if !ok {
-		return item{}, false
+		return nil, false
 	}
 	i := v.(item)
 	if i.expired() {
-		c.GetAndDelete(k)
-		return item{}, false
+		// double check or delete
+		_, _ = c.items.Compute(
+			k,
+			func(value interface{}, loaded bool) (interface{}, bool) {
+				if loaded {
+					i = value.(item)
+					if !i.expired() {
+						// k has a new value
+						ok = true
+						return i, false
+					}
+				}
+				// delete
+				return nil, true
+			},
+		)
+		if !ok {
+			return nil, false
+		}
 	}
 	return i, true
 }
@@ -125,11 +142,12 @@ func (c *xsyncMap) get(k string) (item, bool) {
 // Returns the item or nil,
 // along with the expiration time, and a boolean indicating whether the key was found.
 func (c *xsyncMap) GetWithExpiration(k string) (interface{}, time.Time, bool) {
-	i, ok := c.get(k)
+	v, ok := c.get(k)
 	if !ok {
 		// not found
 		return nil, time.Time{}, false
 	}
+	i := v.(item)
 	if i.e > 0 {
 		// with expiration
 		return i.v, time.Unix(0, i.e), true
@@ -142,14 +160,15 @@ func (c *xsyncMap) GetWithExpiration(k string) (interface{}, time.Time, bool) {
 // Returns the item or nil,
 // with the remaining lifetime and a boolean indicating whether the key was found.
 func (c *xsyncMap) GetWithTTL(k string) (interface{}, time.Duration, bool) {
-	i, ok := c.get(k)
+	v, ok := c.get(k)
 	if !ok {
 		// not found
 		return nil, 0, false
 	}
+	i := v.(item)
 	if i.e > 0 {
 		// with ttl
-		return i.v, time.Unix(0, i.e).Sub(time.Now()), true
+		return i.v, time.Until(time.Unix(0, i.e)), true
 	}
 	// never expires
 	return i.v, NoExpiration, true
@@ -159,10 +178,23 @@ func (c *xsyncMap) GetWithTTL(k string) (interface{}, time.Duration, bool) {
 // Otherwise, it stores and returns the given value.
 // The loaded result is true if the value was loaded, false if stored.
 func (c *xsyncMap) GetOrSet(k string, v interface{}, d time.Duration) (interface{}, bool) {
-	r, ok := c.items.LoadOrStore(k, item{
-		v: v,
-		e: c.expiration(d),
-	})
+	var ok bool
+	r, _ := c.items.Compute(
+		k,
+		func(value interface{}, loaded bool) (interface{}, bool) {
+			if loaded {
+				old := value.(item)
+				if !old.expired() {
+					ok = true
+					return old, false
+				}
+			}
+			return item{
+				v: v,
+				e: c.expiration(d),
+			}, false
+		},
+	)
 	return r.(item).v, ok
 }
 
@@ -171,35 +203,54 @@ func (c *xsyncMap) GetOrSet(k string, v interface{}, d time.Duration) (interface
 // Otherwise, it stores and returns the given value.
 // The loaded result is true if the value was loaded, false otherwise.
 func (c *xsyncMap) GetAndSet(k string, v interface{}, d time.Duration) (interface{}, bool) {
-	r, ok := c.items.LoadAndStore(k, item{
-		v: v,
-		e: c.expiration(d),
-	})
-	return r.(item).v, ok
+	var (
+		ok  bool
+		old item
+	)
+	r, _ := c.items.Compute(
+		k,
+		func(value interface{}, loaded bool) (interface{}, bool) {
+			if loaded {
+				old = value.(item)
+				if !old.expired() {
+					ok = true
+				}
+			}
+			return item{
+				v: v,
+				e: c.expiration(d),
+			}, false
+		},
+	)
+	if ok {
+		return old.v, true
+	}
+	return r.(item).v, false
 }
 
 // GetAndRefresh Get an item from the cache, and refresh the item's expiration time.
 // Returns the item or nil,
 // and a boolean indicating whether the key was found.
-// Allows getting keys that have expired but not been evicted.
-// Not atomic synchronization.
 func (c *xsyncMap) GetAndRefresh(k string, d time.Duration) (interface{}, bool) {
-	v, ok := c.items.Load(k)
+	var ok bool
+	r, _ := c.items.Compute(
+		k,
+		func(value interface{}, loaded bool) (interface{}, bool) {
+			if loaded {
+				i := value.(item)
+				if !i.expired() {
+					ok = true
+					i.e = c.expiration(d)
+					return i, false
+				}
+			}
+			return nil, true
+		},
+	)
 	if !ok {
 		return nil, false
 	}
-
-	i := v.(item)
-	e := c.expiration(d)
-	if i.e == e {
-		return i.v, true
-	}
-
-	c.items.Store(k, item{
-		v: i.v,
-		e: e,
-	})
-	return i.v, true
+	return r.(item).v, true
 }
 
 // GetAndDelete Get an item from the cache, and delete the key.
@@ -274,6 +325,11 @@ func (c *xsyncMap) Items() map[string]interface{} {
 		return true
 	})
 	return items
+}
+
+// Clear deletes all keys and values currently stored in the map.
+func (c *xsyncMap) Clear() {
+	c.items.Clear()
 }
 
 // Count returns the number of items in the cache.

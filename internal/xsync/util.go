@@ -1,41 +1,43 @@
 package xsync
 
 import (
-	"reflect"
-	"unsafe"
+	"runtime"
+	_ "unsafe"
 )
 
 // test-only assert()-like flag
 var assertionsEnabled = false
 
 const (
-	// used in paddings to prevent false sharing;
+	// cacheLineSize is used in paddings to prevent false sharing;
 	// 64B are used instead of 128B as a compromise between
 	// memory footprint and performance; 128B usage may give ~30%
-	// improvement on NUMA machines
+	// improvement on NUMA machines.
 	cacheLineSize = 64
-	// the seed value is of an absolutely arbitrary choice
-	maphashSeed = 42
 )
 
-// murmurhash3 64-bit finalizer
-func hash64(v uintptr) uint64 {
-	x := uint64(v)
-	x = ((x >> 33) ^ x) * 0xff51afd7ed558ccd
-	x = ((x >> 33) ^ x) * 0xc4ceb9fe1a85ec53
-	x = (x >> 33) ^ x
-	return x
+// nextPowOf2 computes the next highest power of 2 of 32-bit v.
+// Source: https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+func nextPowOf2(v uint32) uint32 {
+	v--
+	v |= v >> 1
+	v |= v >> 2
+	v |= v >> 4
+	v |= v >> 8
+	v |= v >> 16
+	v++
+	return v
 }
 
-// exposes the built-in memhash function
-func maphash64(s string) uint64 {
-	if s == "" {
-		return maphashSeed
+func parallelism() uint32 {
+	maxProcs := uint32(runtime.GOMAXPROCS(0))
+	numCores := uint32(runtime.NumCPU())
+	if maxProcs < numCores {
+		return maxProcs
 	}
-	strh := (*reflect.StringHeader)(unsafe.Pointer(&s))
-	return uint64(memhash(unsafe.Pointer(strh.Data), maphashSeed, uintptr(strh.Len)))
+	return numCores
 }
 
 //go:noescape
-//go:linkname memhash runtime.memhash
-func memhash(p unsafe.Pointer, h, s uintptr) uintptr
+//go:linkname fastrand runtime.fastrand
+func fastrand() uint32

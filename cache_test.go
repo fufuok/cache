@@ -285,6 +285,70 @@ func TestCache_DeleteExpired(t *testing.T) {
 	}
 }
 
+func countBasedOnRange(c Cache) int {
+	size := 0
+	c.Range(func(key string, value interface{}) bool {
+		size++
+		return true
+	})
+	return size
+}
+
+func TestCache_Size(t *testing.T) {
+	const numEntries = 1000
+	c := New()
+	size := c.Count()
+	if size != 0 {
+		t.Errorf("zero size expected: %d", size)
+	}
+	expectedSize := 0
+	for i := 0; i < numEntries; i++ {
+		c.SetDefault(strconv.Itoa(i), i)
+		expectedSize++
+		size := c.Count()
+		if size != expectedSize {
+			t.Errorf("size of %d was expected, got: %d", expectedSize, size)
+		}
+		rsize := countBasedOnRange(c)
+		if size != rsize {
+			t.Errorf("size does not match number of entries in Range: %v, %v", size, rsize)
+		}
+	}
+	for i := 0; i < numEntries; i++ {
+		c.Delete(strconv.Itoa(i))
+		expectedSize--
+		size := c.Count()
+		if size != expectedSize {
+			t.Errorf("size of %d was expected, got: %d", expectedSize, size)
+		}
+		rsize := countBasedOnRange(c)
+		if size != rsize {
+			t.Errorf("size does not match number of entries in Range: %v, %v", size, rsize)
+		}
+	}
+}
+
+func TestCache_Clear(t *testing.T) {
+	const numEntries = 1000
+	c := New()
+	for i := 0; i < numEntries; i++ {
+		c.SetDefault(strconv.Itoa(i), i)
+	}
+	size := c.Count()
+	if size != numEntries {
+		t.Errorf("size of %d was expected, got: %d", numEntries, size)
+	}
+	c.Clear()
+	size = c.Count()
+	if size != 0 {
+		t.Errorf("zero size was expected, got: %d", size)
+	}
+	rsize := countBasedOnRange(c)
+	if rsize != 0 {
+		t.Errorf("zero number of entries in Range was expected, got: %d", rsize)
+	}
+}
+
 func TestCache_Range(t *testing.T) {
 	var n int64
 	testRange := func(k string, v interface{}) bool {

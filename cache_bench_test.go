@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Ref: https://github.com/puzpuzpuz/xsync/blob/main/mapof_test.go
+// Ref: https://github.com/puzpuzpuz/xsync/blob/main/map_test.go
 const (
 	// number of entries to use in benchmarks
 	benchmarkNumEntries = 1_000_000
@@ -58,10 +58,47 @@ func BenchmarkCache_NoWarmUp(b *testing.B) {
 	}
 }
 
+func BenchmarkCache_Hash_NoWarmUp(b *testing.B) {
+	for _, bc := range benchmarkCases {
+		if bc.readPercentage == 100 {
+			// This benchmark doesn't make sense without a warm-up.
+			continue
+		}
+		b.Run(bc.name, func(b *testing.B) {
+			m := NewHashOf[string, int]()
+			benchmarkCache(b, func(k string) (int, bool) {
+				return m.Get(k)
+			}, func(k string, v int) {
+				m.SetForever(k, v)
+			}, func(k string) {
+				m.Delete(k)
+			}, bc.readPercentage)
+		})
+	}
+}
+
 func BenchmarkCache_WarmUp(b *testing.B) {
 	for _, bc := range benchmarkCases {
 		b.Run(bc.name, func(b *testing.B) {
 			m := NewOf[int]()
+			for i := 0; i < benchmarkNumEntries; i++ {
+				m.SetForever(benchmarkKeyPrefix+strconv.Itoa(i), i)
+			}
+			benchmarkCache(b, func(k string) (int, bool) {
+				return m.Get(k)
+			}, func(k string, v int) {
+				m.SetForever(k, v)
+			}, func(k string) {
+				m.Delete(k)
+			}, bc.readPercentage)
+		})
+	}
+}
+
+func BenchmarkCache_Hash_WarmUp(b *testing.B) {
+	for _, bc := range benchmarkCases {
+		b.Run(bc.name, func(b *testing.B) {
+			m := NewHashOf[string, int]()
 			for i := 0; i < benchmarkNumEntries; i++ {
 				m.SetForever(benchmarkKeyPrefix+strconv.Itoa(i), i)
 			}

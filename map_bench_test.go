@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// Ref: https://github.com/puzpuzpuz/xsync/blob/main/mapof_test.go
+// Ref: https://github.com/puzpuzpuz/xsync/blob/main/map_test.go
 func BenchmarkMap_NoWarmUp(b *testing.B) {
 	for _, bc := range benchmarkCases {
 		if bc.readPercentage == 100 {
@@ -20,6 +20,24 @@ func BenchmarkMap_NoWarmUp(b *testing.B) {
 		}
 		b.Run(bc.name, func(b *testing.B) {
 			m := NewMapOf[int]()
+			benchmarkMap(b, func(k string) (int, bool) {
+				return m.Load(k)
+			}, func(k string, v int) {
+				m.Store(k, v)
+			}, func(k string) {
+				m.Delete(k)
+			}, bc.readPercentage)
+		})
+	}
+}
+func BenchmarkMap_Hash_NoWarmUp(b *testing.B) {
+	for _, bc := range benchmarkCases {
+		if bc.readPercentage == 100 {
+			// This benchmark doesn't make sense without a warm-up.
+			continue
+		}
+		b.Run(bc.name, func(b *testing.B) {
+			m := NewHashMapOf[string, int]()
 			benchmarkMap(b, func(k string) (int, bool) {
 				return m.Load(k)
 			}, func(k string, v int) {
@@ -59,6 +77,24 @@ func BenchmarkMap_WarmUp(b *testing.B) {
 	for _, bc := range benchmarkCases {
 		b.Run(bc.name, func(b *testing.B) {
 			m := NewMapOf[int]()
+			for i := 0; i < benchmarkNumEntries; i++ {
+				m.Store(benchmarkKeyPrefix+strconv.Itoa(i), i)
+			}
+			benchmarkMap(b, func(k string) (int, bool) {
+				return m.Load(k)
+			}, func(k string, v int) {
+				m.Store(k, v)
+			}, func(k string) {
+				m.Delete(k)
+			}, bc.readPercentage)
+		})
+	}
+}
+
+func BenchmarkMap_Hash_WarmUp(b *testing.B) {
+	for _, bc := range benchmarkCases {
+		b.Run(bc.name, func(b *testing.B) {
+			m := NewHashMapOf[string, int]()
 			for i := 0; i < benchmarkNumEntries; i++ {
 				m.Store(benchmarkKeyPrefix+strconv.Itoa(i), i)
 			}

@@ -7,22 +7,22 @@ import (
 	"time"
 )
 
-type OptionOf[V any] func(config *ConfigOf[V])
+type OptionOf[K comparable, V any] func(config *ConfigOf[K, V])
 
-func WithDefaultExpirationOf[V any](duration time.Duration) OptionOf[V] {
-	return func(config *ConfigOf[V]) {
+func WithDefaultExpirationOf[K comparable, V any](duration time.Duration) OptionOf[K, V] {
+	return func(config *ConfigOf[K, V]) {
 		config.DefaultExpiration = duration
 	}
 }
 
-func WithCleanupIntervalOf[V any](interval time.Duration) OptionOf[V] {
-	return func(config *ConfigOf[V]) {
+func WithCleanupIntervalOf[K comparable, V any](interval time.Duration) OptionOf[K, V] {
+	return func(config *ConfigOf[K, V]) {
 		config.CleanupInterval = interval
 	}
 }
 
-func WithEvictedCallbackOf[V any](ec EvictedCallbackOf[V]) OptionOf[V] {
-	return func(config *ConfigOf[V]) {
+func WithEvictedCallbackOf[K comparable, V any](ec EvictedCallbackOf[K, V]) OptionOf[K, V] {
+	return func(config *ConfigOf[K, V]) {
 		config.EvictedCallback = ec
 	}
 }

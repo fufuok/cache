@@ -4,76 +4,80 @@
 package cache
 
 import (
+	"hash/maphash"
 	"time"
+
+	"github.com/fufuok/cache/internal/xxhash"
 )
 
-type CacheOf[V any] interface {
+type CacheOf[K comparable, V any] interface {
 	// Set add item to the cache, replacing any existing items.
 	// (DefaultExpiration), the item uses a cached default expiration time.
 	// (NoExpiration), the item never expires.
 	// All values less than or equal to 0 are the same except DefaultExpiration,
 	// which means never expires.
-	Set(k string, v V, d time.Duration)
+	Set(k K, v V, d time.Duration)
 
 	// SetDefault add item to the cache with the default expiration time,
 	// replacing any existing items.
-	SetDefault(k string, v V)
+	SetDefault(k K, v V)
 
 	// SetForever add item to cache and set to never expire, replacing any existing items.
-	SetForever(k string, v V)
+	SetForever(k K, v V)
 
 	// Get an item from the cache.
 	// Returns the item or nil,
 	// and a boolean indicating whether the key was found.
-	Get(k string) (V, bool)
+	Get(k K) (value V, ok bool)
 
 	// GetWithExpiration get an item from the cache.
 	// Returns the item or nil,
 	// along with the expiration time, and a boolean indicating whether the key was found.
-	GetWithExpiration(k string) (V, time.Time, bool)
+	GetWithExpiration(k K) (value V, expiration time.Time, ok bool)
 
 	// GetWithTTL get an item from the cache.
 	// Returns the item or nil,
 	// with the remaining lifetime and a boolean indicating whether the key was found.
-	GetWithTTL(k string) (V, time.Duration, bool)
+	GetWithTTL(k K) (value V, ttl time.Duration, ok bool)
 
 	// GetOrSet returns the existing value for the key if present.
 	// Otherwise, it stores and returns the given value.
 	// The loaded result is true if the value was loaded, false if stored.
-	GetOrSet(k string, v V, d time.Duration) (V, bool)
+	GetOrSet(k K, v V, d time.Duration) (value V, loaded bool)
 
 	// GetAndSet returns the existing value for the key if present,
 	// while setting the new value for the key.
 	// Otherwise, it stores and returns the given value.
 	// The loaded result is true if the value was loaded, false otherwise.
-	GetAndSet(k string, v V, d time.Duration) (V, bool)
+	GetAndSet(k K, v V, d time.Duration) (value V, loaded bool)
 
 	// GetAndRefresh Get an item from the cache, and refresh the item's expiration time.
 	// Returns the item or nil,
 	// and a boolean indicating whether the key was found.
-	// Allows getting keys that have expired but not been evicted.
-	// Not atomic synchronization.
-	GetAndRefresh(k string, d time.Duration) (V, bool)
+	GetAndRefresh(k K, d time.Duration) (value V, loaded bool)
 
 	// GetAndDelete Get an item from the cache, and delete the key.
 	// Returns the item or nil,
 	// and a boolean indicating whether the key was found.
-	GetAndDelete(k string) (V, bool)
+	GetAndDelete(k K) (value V, loaded bool)
 
 	// Delete an item from the cache.
 	// Does nothing if the key is not in the cache.
-	Delete(k string)
+	Delete(k K)
 
 	// DeleteExpired delete all expired items from the cache.
 	DeleteExpired()
 
 	// Range calls f sequentially for each key and value present in the map.
 	// If f returns false, range stops the iteration.
-	Range(f func(k string, v V) bool)
+	Range(f func(k K, v V) bool)
 
 	// Items return the items in the cache.
 	// This is a snapshot, which may include items that are about to expire.
-	Items() map[string]V
+	Items() map[K]V
+
+	// Clear deletes all keys and values currently stored in the map.
+	Clear()
 
 	// Count returns the number of items in the cache.
 	// This may include items that have expired but have not been cleaned up.
@@ -88,33 +92,72 @@ type CacheOf[V any] interface {
 
 	// EvictedCallback returns the callback function to execute
 	// when a key-value pair expires and is evicted.
-	EvictedCallback() EvictedCallbackOf[V]
+	EvictedCallback() EvictedCallbackOf[K, V]
 
 	// SetEvictedCallback Set the callback function to be executed
 	// when the key-value pair expires and is evicted.
 	// Atomic safety.
-	SetEvictedCallback(evictedCallback EvictedCallbackOf[V])
+	SetEvictedCallback(evictedCallback EvictedCallbackOf[K, V])
 }
 
-func NewOf[V any](opts ...OptionOf[V]) CacheOf[V] {
-	cfg := DefaultConfigOf[V]()
+func NewOf[V any](opts ...OptionOf[string, V]) CacheOf[string, V] {
+	return NewTypedOf[string, V](HashString, opts...)
+}
+
+func NewIntegerOf[K IntegerConstraint, V any](opts ...OptionOf[K, V]) CacheOf[K, V] {
+	return NewTypedOf[K, V](Hash64[K], opts...)
+}
+
+func NewHashOf[K comparable, V any](opts ...OptionOf[K, V]) CacheOf[K, V] {
+	hasher := xxhash.GenSeedHasher64[K]()
+	return NewTypedOf[K, V](hasher, opts...)
+}
+
+func NewTypedOf[K comparable, V any](hasher func(maphash.Seed, K) uint64, opts ...OptionOf[K, V]) CacheOf[K, V] {
+	cfg := DefaultConfigOf[K, V]()
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	return newXsyncMapOf[V](cfg)
+	return newXsyncTypedMapOf[K, V](hasher, cfg)
 }
 
 func NewOfDefault[V any](
 	defaultExpiration,
 	cleanupInterval time.Duration,
-	evictedCallback ...EvictedCallbackOf[V],
-) CacheOf[V] {
-	opts := []OptionOf[V]{
-		WithDefaultExpirationOf[V](defaultExpiration),
-		WithCleanupIntervalOf[V](cleanupInterval),
+	evictedCallback ...EvictedCallbackOf[string, V],
+) CacheOf[string, V] {
+	return NewTypedOfDefault[string, V](HashString, defaultExpiration, cleanupInterval, evictedCallback...)
+}
+
+func NewIntegerOfDefault[K IntegerConstraint, V any](
+	defaultExpiration,
+	cleanupInterval time.Duration,
+	evictedCallback ...EvictedCallbackOf[K, V],
+) CacheOf[K, V] {
+	return NewTypedOfDefault[K, V](Hash64[K], defaultExpiration, cleanupInterval, evictedCallback...)
+}
+
+func NewHashOfDefault[K comparable, V any](
+	defaultExpiration,
+	cleanupInterval time.Duration,
+	evictedCallback ...EvictedCallbackOf[K, V],
+) CacheOf[K, V] {
+	hasher := xxhash.GenSeedHasher64[K]()
+	return NewTypedOfDefault[K, V](hasher, defaultExpiration, cleanupInterval, evictedCallback...)
+}
+
+func NewTypedOfDefault[K comparable, V any](
+	hasher func(maphash.Seed, K) uint64,
+	defaultExpiration,
+	cleanupInterval time.Duration,
+	evictedCallback ...EvictedCallbackOf[K, V],
+) CacheOf[K, V] {
+	opts := []OptionOf[K, V]{
+		WithDefaultExpirationOf[K, V](defaultExpiration),
+		WithCleanupIntervalOf[K, V](cleanupInterval),
 	}
 	if len(evictedCallback) > 0 {
-		opts = append(opts, WithEvictedCallbackOf(evictedCallback[0]))
+		opts = append(opts, WithEvictedCallbackOf[K, V](evictedCallback[0]))
 	}
-	return NewOf[V](opts...)
+	return NewTypedOf[K, V](hasher, opts...)
 }
