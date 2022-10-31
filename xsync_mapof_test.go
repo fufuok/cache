@@ -124,6 +124,34 @@ func TestXsyncMapOf_SetAndGet(t *testing.T) {
 	}
 }
 
+func TestXsyncMapOf_SetDefault_WithoutCleanup(t *testing.T) {
+	defaultExpiration := 50 * time.Millisecond
+	c := newXsyncMapOfDefault[int](defaultExpiration, 0)
+	c.SetDefault("x", 1)
+	v, ok := c.Get("x")
+	if !ok || v != 1 {
+		t.Fatal("key x should have a value")
+	}
+
+	v, ttl, ok := c.GetWithTTL("x")
+	if !ok || v != 1 {
+		t.Fatal("key x should have a value")
+	}
+	if ttl < 30*time.Millisecond || ttl > defaultExpiration {
+		t.Fatal("incorrect lifetime for key x")
+	}
+
+	<-time.After(55 * time.Millisecond)
+	v, ok = c.Get("x")
+	if ok || v != 0 {
+		t.Fatal("since key x is expired, it should be automatically deleted on get().")
+	}
+
+	if c.Count() != 0 {
+		t.Fatalf("incorrect number of items in cache, expected %d, got %d", 0, c.Count())
+	}
+}
+
 func TestXsyncMapOf_SetDefault(t *testing.T) {
 	defaultExpiration := 50 * time.Millisecond
 	c := newXsyncMapOfDefault[int](defaultExpiration, testCleanupInterval)
@@ -145,6 +173,10 @@ func TestXsyncMapOf_SetDefault(t *testing.T) {
 	v, ok = c.Get("x")
 	if ok || v != 0 {
 		t.Fatal("key x should be automatically deleted")
+	}
+
+	if c.Count() != 0 {
+		t.Fatalf("incorrect number of items in cache, expected %d, got %d", 0, c.Count())
 	}
 }
 

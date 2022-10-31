@@ -143,27 +143,32 @@ func (c *xsyncMapOf[K, V]) Get(k K) (V, bool) {
 }
 
 func (c *xsyncMapOf[K, V]) get(k K) (itemOf[V], bool) {
+	var zeroedV itemOf[V]
 	i, ok := c.items.Load(k)
 	if !ok {
-		return i, false
+		return zeroedV, false
 	}
-	if i.expired() {
-		// double check or delete
-		i, _ = c.items.Compute(
-			k,
-			func(value itemOf[V], loaded bool) (itemOf[V], bool) {
-				if loaded && !value.expired() {
-					// k has a new value
-					ok = true
-					return value, false
-				}
-				// delete
-				var zeroedV itemOf[V]
-				return zeroedV, true
-			},
-		)
+
+	if !i.expired() {
+		return i, true
 	}
-	return i, ok
+
+	// double check or delete
+	i, ok = c.items.Compute(
+		k,
+		func(value itemOf[V], loaded bool) (itemOf[V], bool) {
+			if loaded && !value.expired() {
+				// k has a new value
+				return value, false
+			}
+			// delete
+			return zeroedV, true
+		},
+	)
+	if ok {
+		return i, true
+	}
+	return zeroedV, false
 }
 
 // GetWithExpiration get an item from the cache.
@@ -256,20 +261,23 @@ func (c *xsyncMapOf[K, V]) GetAndSet(k K, v V, d time.Duration) (V, bool) {
 // Returns the item or nil,
 // and a boolean indicating whether the key was found.
 func (c *xsyncMapOf[K, V]) GetAndRefresh(k K, d time.Duration) (V, bool) {
-	var ok bool
-	i, _ := c.items.Compute(
+	var zeroedV itemOf[V]
+	i, ok := c.items.Compute(
 		k,
 		func(value itemOf[V], loaded bool) (itemOf[V], bool) {
 			if loaded && !value.expired() {
-				ok = true
+				// store new value
 				value.e = c.expiration(d)
 				return value, false
 			}
-			var zeroedV itemOf[V]
+			// delete
 			return zeroedV, true
 		},
 	)
-	return i.v, ok
+	if ok {
+		return i.v, true
+	}
+	return zeroedV.v, false
 }
 
 // GetAndDelete Get an item from the cache, and delete the key.

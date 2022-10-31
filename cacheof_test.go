@@ -95,6 +95,18 @@ func TestCacheOf_Expire(t *testing.T) {
 		if ok {
 			t.Fatal("key e should be automatically deleted")
 		}
+
+		n := c.Count()
+		if n != 2 {
+			t.Fatalf("expected number of items in cache to be 2, got: %d", n)
+		}
+
+		c.Clear()
+
+		n = c.Count()
+		if n != 0 {
+			t.Fatalf("expected number of items in cache to be 0, got: %d", n)
+		}
 	}
 }
 
@@ -177,6 +189,34 @@ func TestCacheOf_SetAndGet(t *testing.T) {
 	}
 }
 
+func TestCacheOf_SetDefault_WithoutCleanup(t *testing.T) {
+	defaultExpiration := 50 * time.Millisecond
+	c := NewOfDefault[int](defaultExpiration, 0)
+	c.SetDefault("x", 1)
+	v, ok := c.Get("x")
+	if !ok || v != 1 {
+		t.Fatal("key x should have a value")
+	}
+
+	v, ttl, ok := c.GetWithTTL("x")
+	if !ok || v != 1 {
+		t.Fatal("key x should have a value")
+	}
+	if ttl < 30*time.Millisecond || ttl > defaultExpiration {
+		t.Fatal("incorrect lifetime for key x")
+	}
+
+	<-time.After(55 * time.Millisecond)
+	v, ok = c.Get("x")
+	if ok || v != 0 {
+		t.Fatal("since key x is expired, it should be automatically deleted on get().")
+	}
+
+	if c.Count() != 0 {
+		t.Fatalf("incorrect number of items in cache, expected %d, got %d", 0, c.Count())
+	}
+}
+
 func TestCacheOf_SetDefault(t *testing.T) {
 	defaultExpiration := 50 * time.Millisecond
 	c := NewOfDefault[int](defaultExpiration, testCleanupInterval)
@@ -198,6 +238,10 @@ func TestCacheOf_SetDefault(t *testing.T) {
 	v, ok = c.Get("x")
 	if ok || v != 0 {
 		t.Fatal("key x should be automatically deleted")
+	}
+
+	if c.Count() != 0 {
+		t.Fatalf("incorrect number of items in cache, expected %d, got %d", 0, c.Count())
 	}
 }
 
