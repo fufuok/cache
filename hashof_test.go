@@ -155,7 +155,7 @@ func TestHashString(t *testing.T) {
 	exp := 10 * time.Second
 	seed := maphash.MakeSeed()
 	for i := 0; i < numEntries; i++ {
-		if _, ok := c.GetOrSet(HashString(seed, strconv.Itoa(i)), i, exp); ok {
+		if _, ok := c.GetOrSet(HashSeedString(seed, strconv.Itoa(i)), i, exp); ok {
 			t.Fatal("value was not expected")
 		}
 	}
@@ -164,13 +164,13 @@ func TestHashString(t *testing.T) {
 	}
 }
 
-func TestHash64(t *testing.T) {
+func TestHashSeedUint64(t *testing.T) {
 	const numEntries = 1000
 	c := NewIntegerOf[uint64, int]()
 	exp := 10 * time.Second
 	seed := maphash.MakeSeed()
 	for i := 0; i < numEntries; i++ {
-		if _, ok := c.GetOrSet(Hash64(seed, uint64(i)), i, exp); ok {
+		if _, ok := c.GetOrSet(HashSeedUint64(seed, uint64(i)), i, exp); ok {
 			t.Fatal("value was not expected")
 		}
 	}

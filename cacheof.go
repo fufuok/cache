@@ -120,11 +120,14 @@ type CacheOf[K comparable, V any] interface {
 }
 
 func NewOf[V any](opts ...OptionOf[string, V]) CacheOf[string, V] {
-	return NewTypedOf[string, V](HashString, opts...)
+	return NewTypedOf[string, V](HashSeedString, opts...)
 }
 
 func NewIntegerOf[K IntegerConstraint, V any](opts ...OptionOf[K, V]) CacheOf[K, V] {
-	return NewTypedOf[K, V](Hash64[K], opts...)
+	hasher := func(s maphash.Seed, k K) uint64 {
+		return HashSeedUint64(s, uint64(k))
+	}
+	return NewTypedOf[K, V](hasher, opts...)
 }
 
 func NewHashOf[K comparable, V any](opts ...OptionOf[K, V]) CacheOf[K, V] {
@@ -145,7 +148,7 @@ func NewOfDefault[V any](
 	cleanupInterval time.Duration,
 	evictedCallback ...EvictedCallbackOf[string, V],
 ) CacheOf[string, V] {
-	return NewTypedOfDefault[string, V](HashString, defaultExpiration, cleanupInterval, evictedCallback...)
+	return NewTypedOfDefault[string, V](HashSeedString, defaultExpiration, cleanupInterval, evictedCallback...)
 }
 
 func NewIntegerOfDefault[K IntegerConstraint, V any](
@@ -153,7 +156,10 @@ func NewIntegerOfDefault[K IntegerConstraint, V any](
 	cleanupInterval time.Duration,
 	evictedCallback ...EvictedCallbackOf[K, V],
 ) CacheOf[K, V] {
-	return NewTypedOfDefault[K, V](Hash64[K], defaultExpiration, cleanupInterval, evictedCallback...)
+	hasher := func(s maphash.Seed, k K) uint64 {
+		return HashSeedUint64(s, uint64(k))
+	}
+	return NewTypedOfDefault[K, V](hasher, defaultExpiration, cleanupInterval, evictedCallback...)
 }
 
 func NewHashOfDefault[K comparable, V any](

@@ -363,7 +363,10 @@ func TestXsyncMapOf_GetOrCompute_WithKeyExpired(t *testing.T) {
 }
 
 func TestXsyncMapOf_GetOrCompute_FunctionCalledOnce(t *testing.T) {
-	c := newXsyncTypedMapOf[int, int](Hash64[int])
+	hasher := func(s maphash.Seed, k int) uint64 {
+		return HashSeedUint64(s, uint64(k))
+	}
+	c := newXsyncTypedMapOf[int, int](hasher)
 	for i := 0; i < 100; {
 		c.GetOrCompute(i, func() (v int) {
 			v, i = i, i+1

@@ -28,8 +28,3 @@ func GenHasher64[K comparable]() func(K) uint64 {
 func GenSeedHasher64[K comparable]() func(maphash.Seed, K) uint64 {
 	return xxhash.GenSeedHasher64[K]()
 }
-
-// Hash64 calculates a hash of v with the given seed.
-func Hash64[T IntegerConstraint](seed maphash.Seed, v T) uint64 {
-	return xsync.Hash64(seed, v)
-}

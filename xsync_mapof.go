@@ -30,7 +30,7 @@ type xsyncMapOf[K comparable, V any] struct {
 
 // Create a new cache with string typed keys, optionally specifying configuration items.
 func newXsyncMapOf[V any](config ...ConfigOf[string, V]) CacheOf[string, V] {
-	return newXsyncTypedMapOf[string, V](HashString, config...)
+	return newXsyncTypedMapOf[string, V](HashSeedString, config...)
 }
 
 // Create a new cache with arbitrarily typed keys, optionally specifying configuration items.
@@ -75,7 +75,7 @@ func newXsyncMapOfDefault[V any](
 	cleanupInterval time.Duration,
 	evictedCallback ...EvictedCallbackOf[string, V],
 ) CacheOf[string, V] {
-	return newXsyncTypedMapOfDefault[string, V](HashString, defaultExpiration, cleanupInterval, evictedCallback...)
+	return newXsyncTypedMapOfDefault[string, V](HashSeedString, defaultExpiration, cleanupInterval, evictedCallback...)
 }
 
 // Create a new cache with arbitrarily typed keys,

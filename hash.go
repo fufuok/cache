@@ -14,9 +14,14 @@ var (
 	maphashSeed = uintptr(s1<<32 + s2)
 )
 
-// HashString calculates a hash of s with the given seed.
-func HashString(seed maphash.Seed, s string) uint64 {
-	return xsync.HashString(seed, s)
+// HashSeedString calculates a hash of s with the given seed.
+func HashSeedString(seed maphash.Seed, s string) uint64 {
+	return xsync.HashSeedString(seed, s)
+}
+
+// HashSeedUint64 calculates a hash of v with the given seed.
+func HashSeedUint64(seed maphash.Seed, v uint64) uint64 {
+	return xsync.HashSeedUint64(seed, v)
 }
 
 // StrHash64 is the built-in string hash function.
