@@ -292,6 +292,206 @@ func TestXsyncMapOf_GetAndRefresh(t *testing.T) {
 	}
 }
 
+func TestXsyncMapOf_GetOrCompute(t *testing.T) {
+	const numEntries = 1000
+	c := newXsyncMapOf[int]()
+	for i := 0; i < numEntries; i++ {
+		v, loaded := c.GetOrCompute(strconv.Itoa(i), func() int {
+			return i
+		}, 0)
+		if loaded {
+			t.Fatalf("value not computed for %d", i)
+		}
+		if v != i {
+			t.Fatalf("values do not match for %d: %v", i, v)
+		}
+	}
+	for i := 0; i < numEntries; i++ {
+		v, loaded := c.GetOrCompute(strconv.Itoa(i), func() int {
+			return i
+		}, 0)
+		if !loaded {
+			t.Fatalf("value not loaded for %d", i)
+		}
+		if v != i {
+			t.Fatalf("values do not match for %d: %v", i, v)
+		}
+	}
+}
+
+func TestXsyncMapOf_GetOrCompute_WithKeyExpired(t *testing.T) {
+	c := newXsyncMapOf[int]()
+	v, loaded := c.GetOrCompute("1", func() int {
+		return 1
+	}, 0)
+	if loaded {
+		t.Fatal("value not computed for 1")
+	}
+	if v != 1 {
+		t.Fatalf("values do not match for 1: %v", v)
+	}
+
+	v, loaded = c.GetAndRefresh("1", 10*time.Millisecond)
+	if !loaded {
+		t.Fatal("value not loaded for 1")
+	}
+	if v != 1 {
+		t.Fatalf("values do not match for 1: %v", v)
+	}
+
+	v, loaded = c.GetOrCompute("1", func() int {
+		return 2
+	}, 0)
+	if !loaded {
+		t.Fatal("value not loaded for 1")
+	}
+	if v != 1 {
+		t.Fatalf("values do not match for 1: %v", v)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	v, loaded = c.GetOrCompute("1", func() int {
+		return 1
+	}, 0)
+	if loaded {
+		t.Fatal("value not computed for 1")
+	}
+	if v != 1 {
+		t.Fatalf("values do not match for 1: %v", v)
+	}
+}
+
+func TestXsyncMapOf_GetOrCompute_FunctionCalledOnce(t *testing.T) {
+	c := newXsyncTypedMapOf[int, int](Hash64[int])
+	for i := 0; i < 100; {
+		c.GetOrCompute(i, func() (v int) {
+			v, i = i, i+1
+			return v
+		}, 0)
+	}
+	c.Range(func(k, v int) bool {
+		if k != v {
+			t.Fatalf("%dth key is not equal to value %d", k, v)
+		}
+		return true
+	})
+}
+
+func TestXsyncMapOf_Compute(t *testing.T) {
+	c := newXsyncMapOf[int]()
+	// Store a new value.
+	v, ok := c.Compute("foobar", func(oldValue int, loaded bool) (newValue int, delete bool) {
+		if oldValue != 0 {
+			t.Fatalf("oldValue should be 0 when computing a new value: %d", oldValue)
+		}
+		if loaded {
+			t.Fatal("loaded should be false when computing a new value")
+		}
+		newValue = 42
+		delete = false
+		return
+	}, 0)
+	if v != 42 {
+		t.Fatalf("v should be 42 when computing a new value: %d", v)
+	}
+	if !ok {
+		t.Fatal("ok should be true when computing a new value")
+	}
+	// Update an existing value.
+	v, ok = c.Compute("foobar", func(oldValue int, loaded bool) (newValue int, delete bool) {
+		if oldValue != 42 {
+			t.Fatalf("oldValue should be 42 when updating the value: %d", oldValue)
+		}
+		if !loaded {
+			t.Fatal("loaded should be true when updating the value")
+		}
+		newValue = oldValue + 42
+		delete = false
+		return
+	}, 0)
+	if v != 84 {
+		t.Fatalf("v should be 84 when updating the value: %d", v)
+	}
+	if !ok {
+		t.Fatal("ok should be true when updating the value")
+	}
+	// Delete an existing value.
+	v, ok = c.Compute("foobar", func(oldValue int, loaded bool) (newValue int, delete bool) {
+		if oldValue != 84 {
+			t.Fatalf("oldValue should be 84 when deleting the value: %d", oldValue)
+		}
+		if !loaded {
+			t.Fatal("loaded should be true when deleting the value")
+		}
+		delete = true
+		return
+	}, 0)
+	if v != 84 {
+		t.Fatalf("v should be 84 when deleting the value: %d", v)
+	}
+	if ok {
+		t.Fatal("ok should be false when deleting the value")
+	}
+	// Try to delete a non-existing value. Notice different key.
+	v, ok = c.Compute("barbaz", func(oldValue int, loaded bool) (newValue int, delete bool) {
+		if oldValue != 0 {
+			t.Fatalf("oldValue should be 0 when trying to delete a non-existing value: %d", oldValue)
+		}
+		if loaded {
+			t.Fatal("loaded should be false when trying to delete a non-existing value")
+		}
+		// We're returning a non-zero value, but the map should ignore it.
+		newValue = 42
+		delete = true
+		return
+	}, 0)
+	if v != 0 {
+		t.Fatalf("v should be 0 when trying to delete a non-existing value: %d", v)
+	}
+	if ok {
+		t.Fatal("ok should be false when trying to delete a non-existing value")
+	}
+	// Store a new value.
+	v, ok = c.Compute("expires soon", func(oldValue int, loaded bool) (newValue int, delete bool) {
+		if oldValue != 0 {
+			t.Fatalf("oldValue should be 0 when computing a new value: %d", oldValue)
+		}
+		if loaded {
+			t.Fatal("loaded should be false when computing a new value")
+		}
+		newValue = 42
+		delete = false
+		return
+	}, 10*time.Millisecond)
+	if v != 42 {
+		t.Fatalf("v should be 42 when computing a new value: %d", v)
+	}
+	if !ok {
+		t.Fatal("ok should be true when computing a new value")
+	}
+	time.Sleep(10 * time.Millisecond)
+	// Try to delete a expired value. Notice different key.
+	v, ok = c.Compute("expires soon", func(oldValue int, loaded bool) (newValue int, delete bool) {
+		if oldValue != 0 {
+			t.Fatalf("oldValue should be 0 when trying to delete a expired value: %d", oldValue)
+		}
+		if loaded {
+			t.Fatal("loaded should be false when trying to delete a expired value")
+		}
+		// We're returning a non-zero value, but the map should ignore it.
+		newValue = 42
+		delete = true
+		return
+	}, 0)
+	if v != 0 {
+		t.Fatalf("v should be 0 when trying to delete a expired value: %d", v)
+	}
+	if ok {
+		t.Fatal("ok should be false when trying to delete a expired value")
+	}
+}
+
 func TestXsyncMapOf_GetAndDelete(t *testing.T) {
 	c := newXsyncMapOf[int]()
 	v, ok := c.GetAndDelete("x")

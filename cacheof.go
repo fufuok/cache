@@ -56,6 +56,25 @@ type CacheOf[K comparable, V any] interface {
 	// and a boolean indicating whether the key was found.
 	GetAndRefresh(k K, d time.Duration) (value V, loaded bool)
 
+	// GetOrCompute returns the existing value for the key if present.
+	// Otherwise, it computes the value using the provided function and
+	// returns the computed value. The loaded result is true if the value
+	// was loaded, false if stored.
+	GetOrCompute(k K, valueFn func() V, d time.Duration) (V, bool)
+
+	// Compute either sets the computed new value for the key or deletes
+	// the value for the key. When the delete result of the valueFn function
+	// is set to true, the value will be deleted, if it exists. When delete
+	// is set to false, the value is updated to the newValue.
+	// The ok result indicates whether value was computed and stored, thus, is
+	// present in the map. The actual result contains the new value in cases where
+	// the value was computed and stored. See the example for a few use cases.
+	Compute(
+		k K,
+		valueFn func(oldValue V, loaded bool) (newValue V, delete bool),
+		d time.Duration,
+	) (V, bool)
+
 	// GetAndDelete Get an item from the cache, and delete the key.
 	// Returns the item or nil,
 	// and a boolean indicating whether the key was found.

@@ -234,7 +234,6 @@ func (c *xsyncMap) GetAndSet(k string, v interface{}, d time.Duration) (interfac
 // Returns the item or nil,
 // and a boolean indicating whether the key was found.
 func (c *xsyncMap) GetAndRefresh(k string, d time.Duration) (interface{}, bool) {
-	var ok bool
 	r, ok := c.items.Compute(
 		k,
 		func(value interface{}, loaded bool) (interface{}, bool) {
@@ -254,6 +253,72 @@ func (c *xsyncMap) GetAndRefresh(k string, d time.Duration) (interface{}, bool) 
 		return r.(item).v, true
 	}
 	return nil, false
+}
+
+// GetOrCompute returns the existing value for the key if present.
+// Otherwise, it computes the value using the provided function and
+// returns the computed value. The loaded result is true if the value
+// was loaded, false if stored.
+func (c *xsyncMap) GetOrCompute(k string, valueFn func() interface{}, d time.Duration) (interface{}, bool) {
+	var ok bool
+	v, _ := c.items.Compute(
+		k,
+		func(value interface{}, loaded bool) (interface{}, bool) {
+			if loaded {
+				i := value.(item)
+				if !i.expired() {
+					ok = true
+					return value, false
+				}
+			}
+			return item{
+				v: valueFn(),
+				e: c.expiration(d),
+			}, false
+		},
+	)
+	return v.(item).v, ok
+}
+
+// Compute either sets the computed new value for the key or deletes
+// the value for the key. When the delete result of the valueFn function
+// is set to true, the value will be deleted, if it exists. When delete
+// is set to false, the value is updated to the newValue.
+// The ok result indicates whether value was computed and stored, thus, is
+// present in the map. The actual result contains the new value in cases where
+// the value was computed and stored. See the example for a few use cases.
+func (c *xsyncMap) Compute(
+	k string,
+	valueFn func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool),
+	d time.Duration,
+) (interface{}, bool) {
+	var old interface{}
+	v, ok := c.items.Compute(
+		k,
+		func(ov interface{}, lok bool) (nv interface{}, del bool) {
+			var v interface{}
+			if lok {
+				i := ov.(item)
+				if !i.expired() {
+					old = i.v
+				} else {
+					lok = false
+				}
+			}
+			v, del = valueFn(old, lok)
+			if del {
+				return
+			}
+			return item{
+				v: v,
+				e: c.expiration(d),
+			}, false
+		},
+	)
+	if ok {
+		return v.(item).v, true
+	}
+	return old, false
 }
 
 // GetAndDelete Get an item from the cache, and delete the key.

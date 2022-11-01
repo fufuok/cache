@@ -272,6 +272,209 @@ func TestXsyncMap_GetAndRefresh(t *testing.T) {
 	}
 }
 
+func TestXsyncMap_GetOrCompute(t *testing.T) {
+	const numEntries = 1000
+	c := newXsyncMap()
+	for i := 0; i < numEntries; i++ {
+		v, loaded := c.GetOrCompute(strconv.Itoa(i), func() interface{} {
+			return i
+		}, 0)
+		if loaded {
+			t.Fatalf("value not computed for %d", i)
+		}
+		if vi, ok := v.(int); ok && vi != i {
+			t.Fatalf("values do not match for %d: %v", i, v)
+		}
+	}
+	for i := 0; i < numEntries; i++ {
+		v, loaded := c.GetOrCompute(strconv.Itoa(i), func() interface{} {
+			return i
+		}, 0)
+		if !loaded {
+			t.Fatalf("value not loaded for %d", i)
+		}
+		if vi, ok := v.(int); ok && vi != i {
+			t.Fatalf("values do not match for %d: %v", i, v)
+		}
+	}
+}
+
+func TestXsyncMap_GetOrCompute_WithKeyExpired(t *testing.T) {
+	c := newXsyncMap()
+	v, loaded := c.GetOrCompute("1", func() interface{} {
+		return 1
+	}, 0)
+	if loaded {
+		t.Fatal("value not computed for 1")
+	}
+	if vi, ok := v.(int); ok && vi != 1 {
+		t.Fatalf("values do not match for 1: %v", v)
+	}
+
+	v, loaded = c.GetAndRefresh("1", 10*time.Millisecond)
+	if !loaded {
+		t.Fatal("value not loaded for 1")
+	}
+	if vi, ok := v.(int); ok && vi != 1 {
+		t.Fatalf("values do not match for 1: %v", v)
+	}
+
+	v, loaded = c.GetOrCompute("1", func() interface{} {
+		return 2
+	}, 0)
+	if !loaded {
+		t.Fatal("value not loaded for 1")
+	}
+	if vi, ok := v.(int); ok && vi != 1 {
+		t.Fatalf("values do not match for 1: %v", v)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	v, loaded = c.GetOrCompute("1", func() interface{} {
+		return 1
+	}, 0)
+	if loaded {
+		t.Fatal("value not computed for 1")
+	}
+	if vi, ok := v.(int); ok && vi != 1 {
+		t.Fatalf("values do not match for 1: %v", v)
+	}
+}
+
+func TestXsyncMap_GetOrCompute_FunctionCalledOnce(t *testing.T) {
+	c := newXsyncMap()
+	for i := 0; i < 100; {
+		c.GetOrCompute(strconv.Itoa(i), func() (v interface{}) {
+			v, i = i, i+1
+			return v
+		}, 0)
+	}
+	c.Range(func(k string, v interface{}) bool {
+		if vi, ok := v.(int); !ok || strconv.Itoa(vi) != k {
+			t.Fatalf("%sth key is not equal to value %d", k, v)
+		}
+		return true
+	})
+}
+
+func TestXsyncMap_Compute(t *testing.T) {
+	var zeroedV interface{}
+	c := newXsyncMap()
+	// Store a new value.
+	v, ok := c.Compute("foobar", func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool) {
+		if oldValue != zeroedV {
+			t.Fatalf("oldValue should be empty interface{} when computing a new value: %d", oldValue)
+		}
+		if loaded {
+			t.Fatal("loaded should be false when computing a new value")
+		}
+		newValue = 42
+		delete = false
+		return
+	}, 0)
+	if v.(int) != 42 {
+		t.Fatalf("v should be 42 when computing a new value: %d", v)
+	}
+	if !ok {
+		t.Fatal("ok should be true when computing a new value")
+	}
+	// Update an existing value.
+	v, ok = c.Compute("foobar", func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool) {
+		if oldValue.(int) != 42 {
+			t.Fatalf("oldValue should be 42 when updating the value: %d", oldValue)
+		}
+		if !loaded {
+			t.Fatal("loaded should be true when updating the value")
+		}
+		newValue = oldValue.(int) + 42
+		delete = false
+		return
+	}, 0)
+	if v.(int) != 84 {
+		t.Fatalf("v should be 84 when updating the value: %d", v)
+	}
+	if !ok {
+		t.Fatal("ok should be true when updating the value")
+	}
+	// Delete an existing value.
+	v, ok = c.Compute("foobar", func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool) {
+		if oldValue != 84 {
+			t.Fatalf("oldValue should be 84 when deleting the value: %d", oldValue)
+		}
+		if !loaded {
+			t.Fatal("loaded should be true when deleting the value")
+		}
+		delete = true
+		return
+	}, 0)
+	if v.(int) != 84 {
+		t.Fatalf("v should be 84 when deleting the value: %d", v)
+	}
+	if ok {
+		t.Fatal("ok should be false when deleting the value")
+	}
+	// Try to delete a non-existing value. Notice different key.
+	v, ok = c.Compute("barbaz", func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool) {
+		var zeroedV interface{}
+		if oldValue != zeroedV {
+			t.Fatalf("oldValue should be empty interface{} when trying to delete a non-existing value: %d", oldValue)
+		}
+		if loaded {
+			t.Fatal("loaded should be false when trying to delete a non-existing value")
+		}
+		// We're returning a non-zero value, but the map should ignore it.
+		newValue = 42
+		delete = true
+		return
+	}, 0)
+	if v != zeroedV {
+		t.Fatalf("v should be empty interface{} when trying to delete a non-existing value: %d", v)
+	}
+	if ok {
+		t.Fatal("ok should be false when trying to delete a non-existing value")
+	}
+	// Store a new value.
+	v, ok = c.Compute("expires soon", func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool) {
+		if oldValue != zeroedV {
+			t.Fatalf("oldValue should be empty interface{} when computing a new value: %d", oldValue)
+		}
+		if loaded {
+			t.Fatal("loaded should be false when computing a new value")
+		}
+		newValue = 42
+		delete = false
+		return
+	}, 10*time.Millisecond)
+	if v.(int) != 42 {
+		t.Fatalf("v should be 42 when computing a new value: %d", v)
+	}
+	if !ok {
+		t.Fatal("ok should be true when computing a new value")
+	}
+	time.Sleep(10 * time.Millisecond)
+	// Try to delete a expired value. Notice different key.
+	v, ok = c.Compute("expires soon", func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool) {
+		var zeroedV interface{}
+		if oldValue != zeroedV {
+			t.Fatalf("oldValue should be empty interface{} when trying to delete a expired value: %d", oldValue)
+		}
+		if loaded {
+			t.Fatal("loaded should be false when trying to delete a expired value")
+		}
+		// We're returning a non-zero value, but the map should ignore it.
+		newValue = 42
+		delete = true
+		return
+	}, 10*time.Millisecond)
+	if v != zeroedV {
+		t.Fatalf("v should be empty interface{} when trying to delete a expired value: %d", v)
+	}
+	if ok {
+		t.Fatal("ok should be false when trying to delete a expired value")
+	}
+}
+
 func TestXsyncMap_GetAndDelete(t *testing.T) {
 	c := newXsyncMap()
 	v, ok := c.GetAndDelete("x")

@@ -87,7 +87,7 @@ func FastRandn(n uint32) uint32
 func GenHasher64[K comparable]() func(K) uint64
 ```
 
-GenHasher64 use xxHash\. Same as NewHashMapOf\, NewHashOf hashing algorithm
+GenHasher64 use xxHash. Same as NewHashMapOf, NewHashOf hashing algorithm
 
 ## func [GenSeedHasher64](<https://github.com/fufuok/cache/blob/master/hashof.go#L28>)
 
@@ -101,7 +101,7 @@ func GenSeedHasher64[K comparable]() func(maphash.Seed, K) uint64
 func Hash64[T IntegerConstraint](seed maphash.Seed, v T) uint64
 ```
 
-Hash64 calculates a hash of v with the given seed\.
+Hash64 calculates a hash of v with the given seed.
 
 ## func [HashString](<https://github.com/fufuok/cache/blob/master/hash.go#L18>)
 
@@ -109,7 +109,7 @@ Hash64 calculates a hash of v with the given seed\.
 func HashString(seed maphash.Seed, s string) uint64
 ```
 
-HashString calculates a hash of s with the given seed\.
+HashString calculates a hash of s with the given seed.
 
 ## func [StrHash64](<https://github.com/fufuok/cache/blob/master/hash.go#L27>)
 
@@ -117,11 +117,11 @@ HashString calculates a hash of s with the given seed\.
 func StrHash64(s string) uint64
 ```
 
-StrHash64 is the built\-in string hash function\. It might be handy when writing a hasher function for NewTypedMapOf\.
+StrHash64 is the built\-in string hash function. It might be handy when writing a hasher function for NewTypedMapOf.
 
-Returned hash codes are is local to a single process and cannot be recreated in a different process\.
+Returned hash codes are is local to a single process and cannot be recreated in a different process.
 
-## type [Cache](<https://github.com/fufuok/cache/blob/master/cache.go#L7-L95>)
+## type [Cache](<https://github.com/fufuok/cache/blob/master/cache.go#L7-L114>)
 
 ```go
 type Cache interface {
@@ -170,6 +170,25 @@ type Cache interface {
     // and a boolean indicating whether the key was found.
     GetAndRefresh(k string, d time.Duration) (value interface{}, loaded bool)
 
+    // GetOrCompute returns the existing value for the key if present.
+    // Otherwise, it computes the value using the provided function and
+    // returns the computed value. The loaded result is true if the value
+    // was loaded, false if stored.
+    GetOrCompute(k string, valueFn func() interface{}, d time.Duration) (interface{}, bool)
+
+    // Compute either sets the computed new value for the key or deletes
+    // the value for the key. When the delete result of the valueFn function
+    // is set to true, the value will be deleted, if it exists. When delete
+    // is set to false, the value is updated to the newValue.
+    // The ok result indicates whether value was computed and stored, thus, is
+    // present in the map. The actual result contains the new value in cases where
+    // the value was computed and stored. See the example for a few use cases.
+    Compute(
+        k string,
+        valueFn func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool),
+        d time.Duration,
+    ) (interface{}, bool)
+
     // GetAndDelete Get an item from the cache, and delete the key.
     // Returns the item or nil,
     // and a boolean indicating whether the key was found.
@@ -215,19 +234,19 @@ type Cache interface {
 }
 ```
 
-### func [New](<https://github.com/fufuok/cache/blob/master/cache.go#L97>)
+### func [New](<https://github.com/fufuok/cache/blob/master/cache.go#L116>)
 
 ```go
 func New(opts ...Option) Cache
 ```
 
-### func [NewDefault](<https://github.com/fufuok/cache/blob/master/cache.go#L105-L109>)
+### func [NewDefault](<https://github.com/fufuok/cache/blob/master/cache.go#L124-L128>)
 
 ```go
 func NewDefault(defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallback) Cache
 ```
 
-## type [CacheOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L13-L101>)
+## type [CacheOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L13-L120>)
 
 ```go
 type CacheOf[K comparable, V any] interface {
@@ -276,6 +295,25 @@ type CacheOf[K comparable, V any] interface {
     // and a boolean indicating whether the key was found.
     GetAndRefresh(k K, d time.Duration) (value V, loaded bool)
 
+    // GetOrCompute returns the existing value for the key if present.
+    // Otherwise, it computes the value using the provided function and
+    // returns the computed value. The loaded result is true if the value
+    // was loaded, false if stored.
+    GetOrCompute(k K, valueFn func() V, d time.Duration) (V, bool)
+
+    // Compute either sets the computed new value for the key or deletes
+    // the value for the key. When the delete result of the valueFn function
+    // is set to true, the value will be deleted, if it exists. When delete
+    // is set to false, the value is updated to the newValue.
+    // The ok result indicates whether value was computed and stored, thus, is
+    // present in the map. The actual result contains the new value in cases where
+    // the value was computed and stored. See the example for a few use cases.
+    Compute(
+        k K,
+        valueFn func(oldValue V, loaded bool) (newValue V, delete bool),
+        d time.Duration,
+    ) (V, bool)
+
     // GetAndDelete Get an item from the cache, and delete the key.
     // Returns the item or nil,
     // and a boolean indicating whether the key was found.
@@ -321,49 +359,49 @@ type CacheOf[K comparable, V any] interface {
 }
 ```
 
-### func [NewHashOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L111>)
+### func [NewHashOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L130>)
 
 ```go
 func NewHashOf[K comparable, V any](opts ...OptionOf[K, V]) CacheOf[K, V]
 ```
 
-### func [NewHashOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L140-L144>)
+### func [NewHashOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L159-L163>)
 
 ```go
 func NewHashOfDefault[K comparable, V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[K, V]) CacheOf[K, V]
 ```
 
-### func [NewIntegerOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L107>)
+### func [NewIntegerOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L126>)
 
 ```go
 func NewIntegerOf[K IntegerConstraint, V any](opts ...OptionOf[K, V]) CacheOf[K, V]
 ```
 
-### func [NewIntegerOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L132-L136>)
+### func [NewIntegerOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L151-L155>)
 
 ```go
 func NewIntegerOfDefault[K IntegerConstraint, V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[K, V]) CacheOf[K, V]
 ```
 
-### func [NewOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L103>)
+### func [NewOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L122>)
 
 ```go
 func NewOf[V any](opts ...OptionOf[string, V]) CacheOf[string, V]
 ```
 
-### func [NewOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L124-L128>)
+### func [NewOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L143-L147>)
 
 ```go
 func NewOfDefault[V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[string, V]) CacheOf[string, V]
 ```
 
-### func [NewTypedOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L116>)
+### func [NewTypedOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L135>)
 
 ```go
 func NewTypedOf[K comparable, V any](hasher func(maphash.Seed, K) uint64, opts ...OptionOf[K, V]) CacheOf[K, V]
 ```
 
-### func [NewTypedOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L149-L154>)
+### func [NewTypedOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L168-L173>)
 
 ```go
 func NewTypedOfDefault[K comparable, V any](hasher func(maphash.Seed, K) uint64, defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[K, V]) CacheOf[K, V]
@@ -413,7 +451,7 @@ func DefaultConfigOf[K comparable, V any]() ConfigOf[K, V]
 
 ## type [EvictedCallback](<https://github.com/fufuok/cache/blob/master/config.go#L21>)
 
-EvictedCallback callback function to execute when the key\-value pair expires and is evicted\. Warning: cannot block\, it is recommended to use goroutine\.
+EvictedCallback callback function to execute when the key\-value pair expires and is evicted. Warning: cannot block, it is recommended to use goroutine.
 
 ```go
 type EvictedCallback func(k string, v interface{})
@@ -421,7 +459,7 @@ type EvictedCallback func(k string, v interface{})
 
 ## type [EvictedCallbackOf](<https://github.com/fufuok/cache/blob/master/configof.go#L12>)
 
-EvictedCallbackOf callback function to execute when the key\-value pair expires and is evicted\. Warning: cannot block\, it is recommended to use goroutine\.
+EvictedCallbackOf callback function to execute when the key\-value pair expires and is evicted. Warning: cannot block, it is recommended to use goroutine.
 
 ```go
 type EvictedCallbackOf[K comparable, V any] func(k K, v V)
@@ -439,7 +477,7 @@ type Hashable interface {
 
 ## type [IntegerConstraint](<https://github.com/fufuok/cache/blob/master/hashof.go#L14>)
 
-IntegerConstraint represents any integer type\.
+IntegerConstraint represents any integer type.
 
 ```go
 type IntegerConstraint interface{ xsync.IntegerConstraint }
@@ -523,7 +561,7 @@ type Map interface {
 func NewMap() Map
 ```
 
-NewMap the keys never expire\, similar to the use of sync\.Map\.
+NewMap the keys never expire, similar to the use of sync.Map.
 
 ## type [MapOf](<https://github.com/fufuok/cache/blob/master/mapof.go#L12-L78>)
 
@@ -603,7 +641,7 @@ type MapOf[K comparable, V any] interface {
 func NewHashMapOf[K comparable, V any](hasher ...func(maphash.Seed, K) uint64) MapOf[K, V]
 ```
 
-NewHashMapOf creates a new HashMapOf instance with arbitrarily typed keys\. If no hasher is specified\, an automatic generation will be attempted\. Hashable allowed map key types constraint\. Automatically generated hashes for these types are safe:
+NewHashMapOf creates a new HashMapOf instance with arbitrarily typed keys. If no hasher is specified, an automatic generation will be attempted. Hashable allowed map key types constraint. Automatically generated hashes for these types are safe:
 
 ```
 type Hashable interface {
@@ -618,7 +656,7 @@ type Hashable interface {
 func NewIntegerMapOf[K IntegerConstraint, V any]() MapOf[K, V]
 ```
 
-NewIntegerMapOf creates a new HashMapOf instance with integer typed keys\.
+NewIntegerMapOf creates a new HashMapOf instance with integer typed keys.
 
 ### func [NewMapOf](<https://github.com/fufuok/cache/blob/master/mapof.go#L82>)
 
@@ -626,7 +664,7 @@ NewIntegerMapOf creates a new HashMapOf instance with integer typed keys\.
 func NewMapOf[V any]() MapOf[string, V]
 ```
 
-NewMapOf creates a new HashMapOf instance with string keys\. The keys never expire\, similar to the use of sync\.Map\.
+NewMapOf creates a new HashMapOf instance with string keys. The keys never expire, similar to the use of sync.Map.
 
 ### func [NewTypedMapOf](<https://github.com/fufuok/cache/blob/master/mapof.go#L108>)
 
@@ -634,7 +672,7 @@ NewMapOf creates a new HashMapOf instance with string keys\. The keys never expi
 func NewTypedMapOf[K comparable, V any](hasher func(maphash.Seed, K) uint64) MapOf[K, V]
 ```
 
-NewTypedMapOf creates a new HashMapOf instance with arbitrarily typed keys\. Keys are hashed to uint64 using the hasher function\. Note that StrHash64 function might be handy when writing the hasher function for structs with string fields\.
+NewTypedMapOf creates a new HashMapOf instance with arbitrarily typed keys. Keys are hashed to uint64 using the hasher function. Note that StrHash64 function might be handy when writing the hasher function for structs with string fields.
 
 ## type [Option](<https://github.com/fufuok/cache/blob/master/options.go#L7>)
 
