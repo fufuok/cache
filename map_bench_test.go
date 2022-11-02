@@ -4,11 +4,9 @@
 package cache
 
 import (
-	"math/rand"
 	"strconv"
 	"sync"
 	"testing"
-	"time"
 )
 
 // Ref: https://github.com/puzpuzpuz/xsync/blob/main/map_test.go
@@ -30,6 +28,7 @@ func BenchmarkMap_NoWarmUp(b *testing.B) {
 		})
 	}
 }
+
 func BenchmarkMap_Hash_NoWarmUp(b *testing.B) {
 	for _, bc := range benchmarkCases {
 		if bc.readPercentage == 100 {
@@ -43,6 +42,44 @@ func BenchmarkMap_Hash_NoWarmUp(b *testing.B) {
 			}, func(k string, v int) {
 				m.Store(k, v)
 			}, func(k string) {
+				m.Delete(k)
+			}, bc.readPercentage)
+		})
+	}
+}
+
+func BenchmarkMap_Integer_NoWarmUp(b *testing.B) {
+	for _, bc := range benchmarkCases {
+		if bc.readPercentage == 100 {
+			// This benchmark doesn't make sense without a warm-up.
+			continue
+		}
+		b.Run(bc.name, func(b *testing.B) {
+			m := NewIntegerMapOf[int, int]()
+			benchmarkIntegerMap(b, func(k int) (int, bool) {
+				return m.Load(k)
+			}, func(k int, v int) {
+				m.Store(k, v)
+			}, func(k int) {
+				m.Delete(k)
+			}, bc.readPercentage)
+		})
+	}
+}
+
+func BenchmarkMap_Integer_Hash_NoWarmUp(b *testing.B) {
+	for _, bc := range benchmarkCases {
+		if bc.readPercentage == 100 {
+			// This benchmark doesn't make sense without a warm-up.
+			continue
+		}
+		b.Run(bc.name, func(b *testing.B) {
+			m := NewHashMapOf[int, int]()
+			benchmarkIntegerMap(b, func(k int) (int, bool) {
+				return m.Load(k)
+			}, func(k int, v int) {
+				m.Store(k, v)
+			}, func(k int) {
 				m.Delete(k)
 			}, bc.readPercentage)
 		})
@@ -109,6 +146,44 @@ func BenchmarkMap_Hash_WarmUp(b *testing.B) {
 	}
 }
 
+func BenchmarkMap_Integer_WarmUp(b *testing.B) {
+	for _, bc := range benchmarkCases {
+		m := NewIntegerMapOf[int, int]()
+		for i := 0; i < benchmarkNumEntries; i++ {
+			m.Store(i, i)
+		}
+		b.Run(bc.name, func(b *testing.B) {
+			m := NewIntegerMapOf[int, int]()
+			benchmarkIntegerMap(b, func(k int) (int, bool) {
+				return m.Load(k)
+			}, func(k int, v int) {
+				m.Store(k, v)
+			}, func(k int) {
+				m.Delete(k)
+			}, bc.readPercentage)
+		})
+	}
+}
+
+func BenchmarkMap_Integer_Hash_WarmUp(b *testing.B) {
+	for _, bc := range benchmarkCases {
+		m := NewHashMapOf[int, int]()
+		for i := 0; i < benchmarkNumEntries; i++ {
+			m.Store(i, i)
+		}
+		b.Run(bc.name, func(b *testing.B) {
+			m := NewIntegerMapOf[int, int]()
+			benchmarkIntegerMap(b, func(k int) (int, bool) {
+				return m.Load(k)
+			}, func(k int, v int) {
+				m.Store(k, v)
+			}, func(k int) {
+				m.Delete(k)
+			}, bc.readPercentage)
+		})
+	}
+}
+
 // This is a nice scenario for sync.Map since a lot of updates
 // will hit the readOnly part of the map.
 func BenchmarkMap_StandardMap_WarmUp(b *testing.B) {
@@ -143,19 +218,44 @@ func benchmarkMap(
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		// convert percent to permille to support 99% case
-		storeThreshold := 10 * readPercentage
-		deleteThreshold := 10*readPercentage + ((1000 - 10*readPercentage) / 2)
+		storeThreshold := uint32(10 * readPercentage)
+		deleteThreshold := uint32(10*readPercentage + ((1000 - 10*readPercentage) / 2))
 		for pb.Next() {
-			op := r.Intn(1000)
-			i := r.Intn(benchmarkNumEntries)
+			op := FastRandn(1000)
+			i := FastRandn(benchmarkNumEntries)
 			if op >= deleteThreshold {
 				deleteFn(benchmarkKeys[i])
 			} else if op >= storeThreshold {
-				storeFn(benchmarkKeys[i], i)
+				storeFn(benchmarkKeys[i], int(i))
 			} else {
 				loadFn(benchmarkKeys[i])
+			}
+		}
+	})
+}
+
+func benchmarkIntegerMap(
+	b *testing.B,
+	loadFn func(k int) (int, bool),
+	storeFn func(k int, v int),
+	deleteFn func(k int),
+	readPercentage int) {
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		// convert percent to permille to support 99% case
+		storeThreshold := uint32(10 * readPercentage)
+		deleteThreshold := uint32(10*readPercentage + ((1000 - 10*readPercentage) / 2))
+		for pb.Next() {
+			op := FastRandn(1000)
+			i := FastRandn(benchmarkNumEntries)
+			if op >= deleteThreshold {
+				deleteFn(benchmarkIntegerKeys[i])
+			} else if op >= storeThreshold {
+				storeFn(benchmarkIntegerKeys[i], int(i))
+			} else {
+				loadFn(benchmarkIntegerKeys[i])
 			}
 		}
 	})
