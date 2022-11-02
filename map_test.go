@@ -68,7 +68,7 @@ func TestMap_EmptyStringKey(t *testing.T) {
 	m.Store("", "foobar")
 	v, ok := m.Load("")
 	if !ok {
-		t.Error("value was expected")
+		t.Fatal("value was expected")
 	}
 	if vs, ok := v.(string); ok && vs != "foobar" {
 		t.Fatalf("value does not match: %v", v)
@@ -80,7 +80,7 @@ func TestMapStore_NilValue(t *testing.T) {
 	m.Store("foo", nil)
 	v, ok := m.Load("foo")
 	if !ok {
-		t.Error("nil value was expected")
+		t.Fatal("nil value was expected")
 	}
 	if v != nil {
 		t.Fatalf("value was not nil: %v", v)
@@ -92,7 +92,7 @@ func TestMapLoadOrStore_NilValue(t *testing.T) {
 	m.LoadOrStore("foo", nil)
 	v, loaded := m.LoadOrStore("foo", nil)
 	if !loaded {
-		t.Error("nil value was expected")
+		t.Fatal("nil value was expected")
 	}
 	if v != nil {
 		t.Fatalf("value was not nil: %v", v)
@@ -105,7 +105,7 @@ func TestMapLoadOrStore_NonNilValue(t *testing.T) {
 	newv := &foo{}
 	v, loaded := m.LoadOrStore("foo", newv)
 	if loaded {
-		t.Error("no value was expected")
+		t.Fatal("no value was expected")
 	}
 	if v != newv {
 		t.Fatalf("value does not match: %v", v)
@@ -113,7 +113,7 @@ func TestMapLoadOrStore_NonNilValue(t *testing.T) {
 	newv2 := &foo{}
 	v, loaded = m.LoadOrStore("foo", newv2)
 	if !loaded {
-		t.Error("value was expected")
+		t.Fatal("value was expected")
 	}
 	if v != newv {
 		t.Fatalf("value does not match: %v", v)
@@ -125,14 +125,14 @@ func TestMapLoadAndStore_NilValue(t *testing.T) {
 	m.LoadAndStore("foo", nil)
 	v, loaded := m.LoadAndStore("foo", nil)
 	if !loaded {
-		t.Error("nil value was expected")
+		t.Fatal("nil value was expected")
 	}
 	if v != nil {
 		t.Fatalf("value was not nil: %v", v)
 	}
 	v, loaded = m.Load("foo")
 	if !loaded {
-		t.Error("nil value was expected")
+		t.Fatal("nil value was expected")
 	}
 	if v != nil {
 		t.Fatalf("value was not nil: %v", v)
@@ -145,7 +145,7 @@ func TestMapLoadAndStore_NonNilValue(t *testing.T) {
 	v1 := &foo{}
 	v, loaded := m.LoadAndStore("foo", v1)
 	if loaded {
-		t.Error("no value was expected")
+		t.Fatal("no value was expected")
 	}
 	if v != v1 {
 		t.Fatalf("value does not match: %v", v)
@@ -153,14 +153,14 @@ func TestMapLoadAndStore_NonNilValue(t *testing.T) {
 	v2 := 2
 	v, loaded = m.LoadAndStore("foo", v2)
 	if !loaded {
-		t.Error("value was expected")
+		t.Fatal("value was expected")
 	}
 	if v != v1 {
 		t.Fatalf("value does not match: %v", v)
 	}
 	v, loaded = m.Load("foo")
 	if !loaded {
-		t.Error("value was expected")
+		t.Fatal("value was expected")
 	}
 	if v != v2 {
 		t.Fatalf("value does not match: %v", v)
@@ -597,11 +597,11 @@ func parallelSeqStorer(t *testing.T, m Map, storeEach, numIters, numEntries int,
 				// Due to atomic snapshots we must see a "<j>"/j pair.
 				v, ok := m.Load(strconv.Itoa(j))
 				if !ok {
-					t.Errorf("value was not found for %d", j)
+					t.Fatalf("value was not found for %d", j)
 					break
 				}
 				if vi, ok := v.(int); !ok || vi != j {
-					t.Errorf("value was not expected for %d: %d", j, vi)
+					t.Fatalf("value was not expected for %d: %d", j, vi)
 					break
 				}
 			}
@@ -641,7 +641,7 @@ func parallelRandStorer(t *testing.T, m Map, numIters, numEntries int, cdone cha
 		j := r.Intn(numEntries)
 		if v, loaded := m.LoadOrStore(strconv.Itoa(j), j); loaded {
 			if vi, ok := v.(int); !ok || vi != j {
-				t.Errorf("value was not expected for %d: %d", j, vi)
+				t.Fatalf("value was not expected for %d: %d", j, vi)
 			}
 		}
 	}
@@ -654,7 +654,7 @@ func parallelRandDeleter(t *testing.T, m Map, numIters, numEntries int, cdone ch
 		j := r.Intn(numEntries)
 		if v, loaded := m.LoadAndDelete(strconv.Itoa(j)); loaded {
 			if vi, ok := v.(int); !ok || vi != j {
-				t.Errorf("value was not expected for %d: %d", j, vi)
+				t.Fatalf("value was not expected for %d: %d", j, vi)
 			}
 		}
 	}
@@ -667,7 +667,7 @@ func parallelLoader(t *testing.T, m Map, numIters, numEntries int, cdone chan bo
 			// Due to atomic snapshots we must either see no entry, or a "<j>"/j pair.
 			if v, ok := m.Load(strconv.Itoa(j)); ok {
 				if vi, ok := v.(int); !ok || vi != j {
-					t.Errorf("value was not expected for %d: %d", j, vi)
+					t.Fatalf("value was not expected for %d: %d", j, vi)
 				}
 			}
 		}

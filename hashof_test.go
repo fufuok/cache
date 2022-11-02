@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/fufuok/cache/internal/xsync"
 )
 
 func TestGenHasher64(t *testing.T) {
@@ -149,7 +151,7 @@ func TestGenHasher64(t *testing.T) {
 	}
 }
 
-func TestHashString(t *testing.T) {
+func TestHashSeedString(t *testing.T) {
 	const numEntries = 1000
 	c := NewIntegerOf[uint64, int]()
 	exp := 10 * time.Second
@@ -171,6 +173,22 @@ func TestHashSeedUint64(t *testing.T) {
 	seed := maphash.MakeSeed()
 	for i := 0; i < numEntries; i++ {
 		if _, ok := c.GetOrSet(HashSeedUint64(seed, uint64(i)), i, exp); ok {
+			t.Fatal("value was not expected")
+		}
+	}
+	if c.Count() != numEntries {
+		t.Fatalf("expect count of 10000, but got: %d", c.Count())
+	}
+}
+
+func TestHashUint64(t *testing.T) {
+	const numEntries = 1000
+	c := NewIntegerOf[uint64, int]()
+	exp := 10 * time.Second
+	seed := maphash.MakeSeed()
+	hasher := xsync.HashUint64[uint64]
+	for i := 0; i < numEntries; i++ {
+		if _, ok := c.GetOrSet(hasher(seed, uint64(i)), i, exp); ok {
 			t.Fatal("value was not expected")
 		}
 	}

@@ -13,8 +13,8 @@ import "github.com/fufuok/cache"
 - [func FastRandn(n uint32) uint32](<#func-fastrandn>)
 - [func GenHasher64[K comparable]() func(K) uint64](<#func-genhasher64>)
 - [func GenSeedHasher64[K comparable]() func(maphash.Seed, K) uint64](<#func-genseedhasher64>)
-- [func Hash64[T IntegerConstraint](seed maphash.Seed, v T) uint64](<#func-hash64>)
-- [func HashString(seed maphash.Seed, s string) uint64](<#func-hashstring>)
+- [func HashSeedString(seed maphash.Seed, s string) uint64](<#func-hashseedstring>)
+- [func HashSeedUint64(seed maphash.Seed, v uint64) uint64](<#func-hashseeduint64>)
 - [func StrHash64(s string) uint64](<#func-strhash64>)
 - [type Cache](<#type-cache>)
   - [func New(opts ...Option) Cache](<#func-new>)
@@ -69,13 +69,13 @@ const (
 )
 ```
 
-## func [FastRand](<https://github.com/fufuok/cache/blob/master/hash.go#L41>)
+## func [FastRand](<https://github.com/fufuok/cache/blob/master/hash.go#L44>)
 
 ```go
 func FastRand() uint32
 ```
 
-## func [FastRandn](<https://github.com/fufuok/cache/blob/master/hash.go#L44>)
+## func [FastRandn](<https://github.com/fufuok/cache/blob/master/hash.go#L47>)
 
 ```go
 func FastRandn(n uint32) uint32
@@ -95,31 +95,29 @@ GenHasher64 use xxHash. Same as NewHashMapOf, NewHashOf hashing algorithm
 func GenSeedHasher64[K comparable]() func(maphash.Seed, K) uint64
 ```
 
-## func [Hash64](<https://github.com/fufuok/cache/blob/master/hashof.go#L33>)
+## func [HashSeedString](<https://github.com/fufuok/cache/blob/master/hash.go#L18>)
 
 ```go
-func Hash64[T IntegerConstraint](seed maphash.Seed, v T) uint64
+func HashSeedString(seed maphash.Seed, s string) uint64
 ```
 
-Hash64 calculates a hash of v with the given seed.
+HashSeedString calculates a hash of s with the given seed.
 
-## func [HashString](<https://github.com/fufuok/cache/blob/master/hash.go#L18>)
+## func [HashSeedUint64](<https://github.com/fufuok/cache/blob/master/hash.go#L23>)
 
 ```go
-func HashString(seed maphash.Seed, s string) uint64
+func HashSeedUint64(seed maphash.Seed, v uint64) uint64
 ```
 
-HashString calculates a hash of s with the given seed.
+HashSeedUint64 calculates a hash of v with the given seed.
 
-## func [StrHash64](<https://github.com/fufuok/cache/blob/master/hash.go#L27>)
+## func [StrHash64](<https://github.com/fufuok/cache/blob/master/hash.go#L30>)
 
 ```go
 func StrHash64(s string) uint64
 ```
 
-StrHash64 is the built\-in string hash function. It might be handy when writing a hasher function for NewTypedMapOf.
-
-Returned hash codes are is local to a single process and cannot be recreated in a different process.
+StrHash64 is the built\-in string hash function. Returned hash codes are is local to a single process and cannot be recreated in a different process.
 
 ## type [Cache](<https://github.com/fufuok/cache/blob/master/cache.go#L7-L114>)
 
@@ -246,7 +244,7 @@ func New(opts ...Option) Cache
 func NewDefault(defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallback) Cache
 ```
 
-## type [CacheOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L13-L120>)
+## type [CacheOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L14-L121>)
 
 ```go
 type CacheOf[K comparable, V any] interface {
@@ -359,49 +357,49 @@ type CacheOf[K comparable, V any] interface {
 }
 ```
 
-### func [NewHashOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L130>)
+### func [NewHashOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L131>)
 
 ```go
 func NewHashOf[K comparable, V any](opts ...OptionOf[K, V]) CacheOf[K, V]
 ```
 
-### func [NewHashOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L159-L163>)
+### func [NewHashOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L160-L164>)
 
 ```go
 func NewHashOfDefault[K comparable, V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[K, V]) CacheOf[K, V]
 ```
 
-### func [NewIntegerOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L126>)
+### func [NewIntegerOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L127>)
 
 ```go
 func NewIntegerOf[K IntegerConstraint, V any](opts ...OptionOf[K, V]) CacheOf[K, V]
 ```
 
-### func [NewIntegerOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L151-L155>)
+### func [NewIntegerOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L152-L156>)
 
 ```go
 func NewIntegerOfDefault[K IntegerConstraint, V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[K, V]) CacheOf[K, V]
 ```
 
-### func [NewOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L122>)
+### func [NewOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L123>)
 
 ```go
 func NewOf[V any](opts ...OptionOf[string, V]) CacheOf[string, V]
 ```
 
-### func [NewOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L143-L147>)
+### func [NewOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L144-L148>)
 
 ```go
 func NewOfDefault[V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[string, V]) CacheOf[string, V]
 ```
 
-### func [NewTypedOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L135>)
+### func [NewTypedOf](<https://github.com/fufuok/cache/blob/master/cacheof.go#L136>)
 
 ```go
 func NewTypedOf[K comparable, V any](hasher func(maphash.Seed, K) uint64, opts ...OptionOf[K, V]) CacheOf[K, V]
 ```
 
-### func [NewTypedOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L168-L173>)
+### func [NewTypedOfDefault](<https://github.com/fufuok/cache/blob/master/cacheof.go#L169-L174>)
 
 ```go
 func NewTypedOfDefault[K comparable, V any](hasher func(maphash.Seed, K) uint64, defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallbackOf[K, V]) CacheOf[K, V]

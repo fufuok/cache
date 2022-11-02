@@ -7,6 +7,7 @@ import (
 	"hash/maphash"
 	"time"
 
+	"github.com/fufuok/cache/internal/xsync"
 	"github.com/fufuok/cache/internal/xxhash"
 )
 
@@ -124,10 +125,7 @@ func NewOf[V any](opts ...OptionOf[string, V]) CacheOf[string, V] {
 }
 
 func NewIntegerOf[K IntegerConstraint, V any](opts ...OptionOf[K, V]) CacheOf[K, V] {
-	hasher := func(s maphash.Seed, k K) uint64 {
-		return HashSeedUint64(s, uint64(k))
-	}
-	return NewTypedOf[K, V](hasher, opts...)
+	return NewTypedOf[K, V](xsync.HashUint64[K], opts...)
 }
 
 func NewHashOf[K comparable, V any](opts ...OptionOf[K, V]) CacheOf[K, V] {
@@ -156,10 +154,7 @@ func NewIntegerOfDefault[K IntegerConstraint, V any](
 	cleanupInterval time.Duration,
 	evictedCallback ...EvictedCallbackOf[K, V],
 ) CacheOf[K, V] {
-	hasher := func(s maphash.Seed, k K) uint64 {
-		return HashSeedUint64(s, uint64(k))
-	}
-	return NewTypedOfDefault[K, V](hasher, defaultExpiration, cleanupInterval, evictedCallback...)
+	return NewTypedOfDefault[K, V](xsync.HashUint64[K], defaultExpiration, cleanupInterval, evictedCallback...)
 }
 
 func NewHashOfDefault[K comparable, V any](

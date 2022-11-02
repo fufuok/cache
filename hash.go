@@ -25,8 +25,6 @@ func HashSeedUint64(seed maphash.Seed, v uint64) uint64 {
 }
 
 // StrHash64 is the built-in string hash function.
-// It might be handy when writing a hasher function for NewTypedMapOf.
-//
 // Returned hash codes are is local to a single process and cannot
 // be recreated in a different process.
 func StrHash64(s string) uint64 {

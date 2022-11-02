@@ -602,7 +602,7 @@ func TestCacheOf_Size(t *testing.T) {
 	c := NewOf[int]()
 	size := c.Count()
 	if size != 0 {
-		t.Errorf("zero size expected: %d", size)
+		t.Fatalf("zero size expected: %d", size)
 	}
 	expectedSize := 0
 	for i := 0; i < numEntries; i++ {
@@ -610,11 +610,11 @@ func TestCacheOf_Size(t *testing.T) {
 		expectedSize++
 		size := c.Count()
 		if size != expectedSize {
-			t.Errorf("size of %d was expected, got: %d", expectedSize, size)
+			t.Fatalf("size of %d was expected, got: %d", expectedSize, size)
 		}
 		rsize := countBasedOnTypedRange(c)
 		if size != rsize {
-			t.Errorf("size does not match number of entries in Range: %v, %v", size, rsize)
+			t.Fatalf("size does not match number of entries in Range: %v, %v", size, rsize)
 		}
 	}
 	for i := 0; i < numEntries; i++ {
@@ -622,11 +622,11 @@ func TestCacheOf_Size(t *testing.T) {
 		expectedSize--
 		size := c.Count()
 		if size != expectedSize {
-			t.Errorf("size of %d was expected, got: %d", expectedSize, size)
+			t.Fatalf("size of %d was expected, got: %d", expectedSize, size)
 		}
 		rsize := countBasedOnTypedRange(c)
 		if size != rsize {
-			t.Errorf("size does not match number of entries in Range: %v, %v", size, rsize)
+			t.Fatalf("size does not match number of entries in Range: %v, %v", size, rsize)
 		}
 	}
 }
@@ -639,16 +639,16 @@ func TestCacheOf_Clear(t *testing.T) {
 	}
 	size := c.Count()
 	if size != numEntries {
-		t.Errorf("size of %d was expected, got: %d", numEntries, size)
+		t.Fatalf("size of %d was expected, got: %d", numEntries, size)
 	}
 	c.Clear()
 	size = c.Count()
 	if size != 0 {
-		t.Errorf("zero size was expected, got: %d", size)
+		t.Fatalf("zero size was expected, got: %d", size)
 	}
 	rsize := countBasedOnTypedRange(c)
 	if rsize != 0 {
-		t.Errorf("zero number of entries in Range was expected, got: %d", rsize)
+		t.Fatalf("zero number of entries in Range was expected, got: %d", rsize)
 	}
 }
 

@@ -219,15 +219,15 @@ func benchmarkMap(
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		// convert percent to permille to support 99% case
-		storeThreshold := uint32(10 * readPercentage)
-		deleteThreshold := uint32(10*readPercentage + ((1000 - 10*readPercentage) / 2))
+		storeThreshold := 10 * readPercentage
+		deleteThreshold := 10*readPercentage + ((1000 - 10*readPercentage) / 2)
 		for pb.Next() {
-			op := FastRandn(1000)
-			i := FastRandn(benchmarkNumEntries)
+			op := int(FastRand() % 1000)
+			i := int(FastRand() % benchmarkNumEntries)
 			if op >= deleteThreshold {
 				deleteFn(benchmarkKeys[i])
 			} else if op >= storeThreshold {
-				storeFn(benchmarkKeys[i], int(i))
+				storeFn(benchmarkKeys[i], i)
 			} else {
 				loadFn(benchmarkKeys[i])
 			}
@@ -245,15 +245,15 @@ func benchmarkIntegerMap(
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		// convert percent to permille to support 99% case
-		storeThreshold := uint32(10 * readPercentage)
-		deleteThreshold := uint32(10*readPercentage + ((1000 - 10*readPercentage) / 2))
+		storeThreshold := 10 * readPercentage
+		deleteThreshold := 10*readPercentage + ((1000 - 10*readPercentage) / 2)
 		for pb.Next() {
-			op := FastRandn(1000)
-			i := FastRandn(benchmarkNumEntries)
+			op := int(FastRand() % 1000)
+			i := int(FastRand() % benchmarkNumEntries)
 			if op >= deleteThreshold {
 				deleteFn(benchmarkIntegerKeys[i])
 			} else if op >= storeThreshold {
-				storeFn(benchmarkIntegerKeys[i], int(i))
+				storeFn(benchmarkIntegerKeys[i], i)
 			} else {
 				loadFn(benchmarkIntegerKeys[i])
 			}

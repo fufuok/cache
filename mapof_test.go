@@ -72,7 +72,7 @@ func TestMapOf_EmptyStringKey(t *testing.T) {
 	m.Store("", "foobar")
 	v, ok := m.Load("")
 	if !ok {
-		t.Error("value was expected")
+		t.Fatal("value was expected")
 	}
 	if v != "foobar" {
 		t.Fatalf("value does not match: %v", v)
@@ -84,7 +84,7 @@ func TestMapOfStore_NilValue(t *testing.T) {
 	m.Store("foo", nil)
 	v, ok := m.Load("foo")
 	if !ok {
-		t.Error("nil value was expected")
+		t.Fatal("nil value was expected")
 	}
 	if v != nil {
 		t.Fatalf("value was not nil: %v", v)
@@ -96,7 +96,7 @@ func TestMapOfLoadOrStore_NilValue(t *testing.T) {
 	m.LoadOrStore("foo", nil)
 	v, loaded := m.LoadOrStore("foo", nil)
 	if !loaded {
-		t.Error("nil value was expected")
+		t.Fatal("nil value was expected")
 	}
 	if v != nil {
 		t.Fatalf("value was not nil: %v", v)
@@ -109,7 +109,7 @@ func TestMapOfLoadOrStore_NonNilValue(t *testing.T) {
 	newv := &foo{}
 	v, loaded := m.LoadOrStore("foo", newv)
 	if loaded {
-		t.Error("no value was expected")
+		t.Fatal("no value was expected")
 	}
 	if v != newv {
 		t.Fatalf("value does not match: %v", v)
@@ -117,7 +117,7 @@ func TestMapOfLoadOrStore_NonNilValue(t *testing.T) {
 	newv2 := &foo{}
 	v, loaded = m.LoadOrStore("foo", newv2)
 	if !loaded {
-		t.Error("value was expected")
+		t.Fatal("value was expected")
 	}
 	if v != newv {
 		t.Fatalf("value does not match: %v", v)
@@ -129,14 +129,14 @@ func TestMapOfLoadAndStore_NilValue(t *testing.T) {
 	m.LoadAndStore("foo", nil)
 	v, loaded := m.LoadAndStore("foo", nil)
 	if !loaded {
-		t.Error("nil value was expected")
+		t.Fatal("nil value was expected")
 	}
 	if v != nil {
 		t.Fatalf("value was not nil: %v", v)
 	}
 	v, loaded = m.Load("foo")
 	if !loaded {
-		t.Error("nil value was expected")
+		t.Fatal("nil value was expected")
 	}
 	if v != nil {
 		t.Fatalf("value was not nil: %v", v)
@@ -148,7 +148,7 @@ func TestMapOfLoadAndStore_NonNilValue(t *testing.T) {
 	v1 := 1
 	v, loaded := m.LoadAndStore("foo", v1)
 	if loaded {
-		t.Error("no value was expected")
+		t.Fatal("no value was expected")
 	}
 	if v != v1 {
 		t.Fatalf("value does not match: %v", v)
@@ -156,14 +156,14 @@ func TestMapOfLoadAndStore_NonNilValue(t *testing.T) {
 	v2 := 2
 	v, loaded = m.LoadAndStore("foo", v2)
 	if !loaded {
-		t.Error("value was expected")
+		t.Fatal("value was expected")
 	}
 	if v != v1 {
 		t.Fatalf("value does not match: %v", v)
 	}
 	v, loaded = m.Load("foo")
 	if !loaded {
-		t.Error("value was expected")
+		t.Fatal("value was expected")
 	}
 	if v != v2 {
 		t.Fatalf("value does not match: %v", v)
@@ -673,10 +673,10 @@ func TestHashMapOf_StructKey_CustomHasher(t *testing.T) {
 	for i := 0; i < num; i++ {
 		v, ok := m.Load(location{float32(i), float32(-i)})
 		if !ok {
-			t.Errorf("value not found: %d", i)
+			t.Fatalf("value not found: %d", i)
 		}
 		if v != i {
-			t.Errorf("values do not match, %d: %v", i, v)
+			t.Fatalf("values do not match, %d: %v", i, v)
 		}
 	}
 }
@@ -701,25 +701,25 @@ func TestHashMapOf_StructKey_GenHasher(t *testing.T) {
 	for _, k := range keys {
 		v, ok := m.Load(k)
 		if !ok {
-			t.Errorf("value not found: %d", i)
+			t.Fatalf("value not found: %d", i)
 		}
 		if v != i {
-			t.Errorf("values do not match, %d: %v", i, v)
+			t.Fatalf("values do not match, %d: %v", i, v)
 		}
 		i++
 	}
 	for i := 0; i < num; i++ {
 		v, ok := m.Load(keys[i])
 		if !ok {
-			t.Errorf("value not found: %d", i)
+			t.Fatalf("value not found: %d", i)
 		}
 		if v != i {
-			t.Errorf("values do not match, %d: %v", i, v)
+			t.Fatalf("values do not match, %d: %v", i, v)
 		}
 	}
 	key := &location{float32(1), float32(-1)}
 	v, ok := m.Load(key)
 	if ok {
-		t.Errorf("find value, expect or not: %v", v)
+		t.Fatalf("find value, expect or not: %v", v)
 	}
 }
