@@ -23,3 +23,9 @@ func WithEvictedCallback(ec EvictedCallback) Option {
 		config.EvictedCallback = ec
 	}
 }
+
+func WithMinCapacity(sizeHint int) Option {
+	return func(config *Config) {
+		config.MinCapacity = sizeHint
+	}
+}

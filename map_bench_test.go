@@ -17,7 +17,7 @@ func BenchmarkMap_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewMapOf[int]()
+			m := NewMapOfPresized[int](benchmarkNumEntries)
 			benchmarkMap(b, func(k string) (int, bool) {
 				return m.Load(k)
 			}, func(k string, v int) {
@@ -36,7 +36,7 @@ func BenchmarkMap_Hash_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewHashMapOf[string, int]()
+			m := NewHashMapOfPresized[string, int](benchmarkNumEntries)
 			benchmarkMap(b, func(k string) (int, bool) {
 				return m.Load(k)
 			}, func(k string, v int) {
@@ -55,7 +55,7 @@ func BenchmarkMap_Integer_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewIntegerMapOf[int, int]()
+			m := NewIntegerMapOfPresized[int, int](benchmarkNumEntries)
 			benchmarkIntegerMap(b, func(k int) (int, bool) {
 				return m.Load(k)
 			}, func(k int, v int) {
@@ -74,7 +74,7 @@ func BenchmarkMap_Integer_Hash_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewHashMapOf[int, int]()
+			m := NewHashMapOfPresized[int, int](benchmarkNumEntries)
 			benchmarkIntegerMap(b, func(k int) (int, bool) {
 				return m.Load(k)
 			}, func(k int, v int) {

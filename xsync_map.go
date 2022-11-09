@@ -25,7 +25,7 @@ type xsyncMap struct {
 func newXsyncMap(config ...Config) Cache {
 	cfg := configDefault(config...)
 	c := &xsyncMap{
-		items: xsync.NewMap(),
+		items: xsync.NewMapPresized(cfg.MinCapacity),
 		stop:  make(chan struct{}),
 	}
 	c.defaultExpiration.Store(cfg.DefaultExpiration)

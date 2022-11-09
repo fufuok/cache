@@ -271,7 +271,7 @@ func TestCache_GetAndRefresh(t *testing.T) {
 
 func TestCache_GetOrCompute(t *testing.T) {
 	const numEntries = 1000
-	c := New()
+	c := New(WithMinCapacity(numEntries))
 	for i := 0; i < numEntries; i++ {
 		v, loaded := c.GetOrCompute(strconv.Itoa(i), func() interface{} {
 			return i

@@ -380,7 +380,7 @@ func TestMapCompute(t *testing.T) {
 
 func TestMapStoreThenDelete(t *testing.T) {
 	const numEntries = 1000
-	m := NewMap()
+	m := NewMapPresized(numEntries)
 	for i := 0; i < numEntries; i++ {
 		m.Store(strconv.Itoa(i), i)
 	}
@@ -394,7 +394,7 @@ func TestMapStoreThenDelete(t *testing.T) {
 
 func TestMapStoreThenLoadAndDelete(t *testing.T) {
 	const numEntries = 1000
-	m := NewMap()
+	m := NewMapPresized(numEntries)
 	for i := 0; i < numEntries; i++ {
 		m.Store(strconv.Itoa(i), i)
 	}

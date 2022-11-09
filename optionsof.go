@@ -26,3 +26,9 @@ func WithEvictedCallbackOf[K comparable, V any](ec EvictedCallbackOf[K, V]) Opti
 		config.EvictedCallback = ec
 	}
 }
+
+func WithMinCapacityOf[K comparable, V any](sizeHint int) OptionOf[K, V] {
+	return func(config *ConfigOf[K, V]) {
+		config.MinCapacity = sizeHint
+	}
+}

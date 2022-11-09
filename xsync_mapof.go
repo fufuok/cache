@@ -40,7 +40,7 @@ func newXsyncTypedMapOf[K comparable, V any](
 ) CacheOf[K, V] {
 	cfg := configDefaultOf(config...)
 	c := &xsyncMapOf[K, V]{
-		items: xsync.NewTypedMapOf[K, itemOf[V]](hasher),
+		items: xsync.NewTypedMapOfPresized[K, itemOf[V]](hasher, cfg.MinCapacity),
 		stop:  make(chan struct{}),
 	}
 	c.defaultExpiration.Store(cfg.DefaultExpiration)

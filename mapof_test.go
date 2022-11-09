@@ -480,7 +480,7 @@ func TestMapOfCompute(t *testing.T) {
 
 func TestMapOfStoreThenDelete(t *testing.T) {
 	const numEntries = 1000
-	m := NewMapOf[int]()
+	m := NewMapOfPresized[int](numEntries)
 	for i := 0; i < numEntries; i++ {
 		m.Store(strconv.Itoa(i), i)
 	}
@@ -494,7 +494,7 @@ func TestMapOfStoreThenDelete(t *testing.T) {
 
 func TestIntegerMapOfStoreThenDelete(t *testing.T) {
 	const numEntries = 1000
-	m := NewIntegerMapOf[int32, int32]()
+	m := NewIntegerMapOfPresized[int32, int32](numEntries)
 	for i := 0; i < numEntries; i++ {
 		m.Store(int32(i), int32(i))
 	}
@@ -512,7 +512,7 @@ func TestTypedMapOfStoreThenDelete(t *testing.T) {
 		y int32
 	}
 	const numEntries = 1000
-	m := NewTypedMapOf[foo, string](func(seed maphash.Seed, f foo) uint64 {
+	m := NewTypedMapOfPresized[foo, string](func(seed maphash.Seed, f foo) uint64 {
 		var h maphash.Hash
 		h.SetSeed(seed)
 		binary.Write(&h, binary.LittleEndian, f.x)
@@ -520,7 +520,7 @@ func TestTypedMapOfStoreThenDelete(t *testing.T) {
 		h.Reset()
 		binary.Write(&h, binary.LittleEndian, f.y)
 		return 31*hash + h.Sum64()
-	})
+	}, numEntries)
 	for i := 0; i < numEntries; i++ {
 		m.Store(foo{int32(i), 42}, strconv.Itoa(i))
 	}

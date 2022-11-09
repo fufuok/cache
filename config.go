@@ -14,6 +14,9 @@ const (
 
 	// DefaultCleanupInterval the default time interval for automatically cleaning up expired key-value pairs
 	DefaultCleanupInterval = 10 * time.Second
+
+	// DefaultMinCapacity specify the initial cache capacity (minimum capacity)
+	DefaultMinCapacity = 32 * 3
 )
 
 // EvictedCallback callback function to execute when the key-value pair expires and is evicted.
@@ -29,6 +32,9 @@ type Config struct {
 
 	// EvictedCallback executed when the key-value pair expires.
 	EvictedCallback EvictedCallback
+
+	// MinCapacity specify the initial cache capacity (minimum capacity)
+	MinCapacity int
 }
 
 func DefaultConfig() Config {
@@ -36,6 +42,7 @@ func DefaultConfig() Config {
 		DefaultExpiration: NoExpiration,
 		CleanupInterval:   DefaultCleanupInterval,
 		EvictedCallback:   nil,
+		MinCapacity:       DefaultMinCapacity,
 	}
 }
 
@@ -52,6 +59,9 @@ func configDefault(config ...Config) Config {
 	}
 	if cfg.CleanupInterval < 0 {
 		cfg.CleanupInterval = 0
+	}
+	if cfg.MinCapacity < DefaultMinCapacity {
+		cfg.MinCapacity = DefaultMinCapacity
 	}
 
 	return cfg

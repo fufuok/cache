@@ -20,6 +20,9 @@ type ConfigOf[K comparable, V any] struct {
 
 	// EvictedCallback executed when the key-value pair expires.
 	EvictedCallback EvictedCallbackOf[K, V]
+
+	// MinCapacity specify the initial cache capacity (minimum capacity)
+	MinCapacity int
 }
 
 func DefaultConfigOf[K comparable, V any]() ConfigOf[K, V] {
@@ -27,6 +30,7 @@ func DefaultConfigOf[K comparable, V any]() ConfigOf[K, V] {
 		DefaultExpiration: NoExpiration,
 		CleanupInterval:   DefaultCleanupInterval,
 		EvictedCallback:   nil,
+		MinCapacity:       DefaultMinCapacity,
 	}
 }
 
@@ -43,6 +47,9 @@ func configDefaultOf[K comparable, V any](config ...ConfigOf[K, V]) ConfigOf[K, 
 	}
 	if cfg.CleanupInterval < 0 {
 		cfg.CleanupInterval = 0
+	}
+	if cfg.MinCapacity < DefaultMinCapacity {
+		cfg.MinCapacity = DefaultMinCapacity
 	}
 
 	return cfg

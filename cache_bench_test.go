@@ -49,7 +49,7 @@ func BenchmarkCache_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewOf[int]()
+			m := NewOf[int](WithMinCapacityOf[string, int](benchmarkNumEntries))
 			benchmarkCache(b, func(k string) (int, bool) {
 				return m.Get(k)
 			}, func(k string, v int) {
@@ -68,7 +68,7 @@ func BenchmarkCache_Hash_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewHashOf[string, int]()
+			m := NewHashOf[string, int](WithMinCapacityOf[string, int](benchmarkNumEntries))
 			benchmarkCache(b, func(k string) (int, bool) {
 				return m.Get(k)
 			}, func(k string, v int) {
@@ -87,7 +87,7 @@ func BenchmarkCache_Integer_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewIntegerOf[int, int]()
+			m := NewIntegerOf[int, int](WithMinCapacityOf[int, int](benchmarkNumEntries))
 			benchmarkIntegerCache(b, func(k int) (int, bool) {
 				return m.Get(k)
 			}, func(k int, v int) {
@@ -106,7 +106,7 @@ func BenchmarkCache_Integer_Hash_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewHashOf[int, int]()
+			m := NewHashOf[int, int](WithMinCapacityOf[int, int](benchmarkNumEntries))
 			benchmarkIntegerCache(b, func(k int) (int, bool) {
 				return m.Get(k)
 			}, func(k int, v int) {

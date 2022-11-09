@@ -274,7 +274,7 @@ func TestXsyncMap_GetAndRefresh(t *testing.T) {
 
 func TestXsyncMap_GetOrCompute(t *testing.T) {
 	const numEntries = 1000
-	c := newXsyncMap()
+	c := newXsyncMap(Config{MinCapacity: numEntries})
 	for i := 0; i < numEntries; i++ {
 		v, loaded := c.GetOrCompute(strconv.Itoa(i), func() interface{} {
 			return i

@@ -76,3 +76,9 @@ type Map interface {
 func NewMap() Map {
 	return xsync.NewMap()
 }
+
+// NewMapPresized creates a new Map instance with capacity enough to hold
+// sizeHint entries. If sizeHint is zero or negative, the value is ignored.
+func NewMapPresized(sizeHint int) Map {
+	return xsync.NewMapPresized(sizeHint)
+}
