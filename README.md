@@ -31,6 +31,17 @@ type CacheOf[K comparable, V any] interface{ ... }
     func NewOfDefault[V any](defaultExpiration, cleanupInterval time.Duration, ...) CacheOf[string, V]
     func NewTypedOf[K comparable, V any](hasher func(maphash.Seed, K) uint64, opts ...OptionOf[K, V]) CacheOf[K, V]
     func NewTypedOfDefault[K comparable, V any](hasher func(maphash.Seed, K) uint64, ...) CacheOf[K, V]
+
+type Option func(config *Config)
+    func WithCleanupInterval(interval time.Duration) Option
+    func WithDefaultExpiration(duration time.Duration) Option
+    func WithEvictedCallback(ec EvictedCallback) Option
+    func WithMinCapacity(sizeHint int) Option
+type OptionOf[K comparable, V any] func(config *ConfigOf[K, V])
+    func WithCleanupIntervalOf[K comparable, V any](interval time.Duration) OptionOf[K, V]
+    func WithDefaultExpirationOf[K comparable, V any](duration time.Duration) OptionOf[K, V]
+    func WithEvictedCallbackOf[K comparable, V any](ec EvictedCallbackOf[K, V]) OptionOf[K, V]
+    func WithMinCapacityOf[K comparable, V any](sizeHint int) OptionOf[K, V]
 ```
 
 **Demo**
@@ -66,11 +77,16 @@ func main() {
 ```go
 type Map interface{ ... }
     func NewMap() Map
+    func NewMapPresized(sizeHint int) Map
 type MapOf[K comparable, V any] interface{ ... }
     func NewHashMapOf[K comparable, V any](hasher ...func(maphash.Seed, K) uint64) MapOf[K, V]
+    func NewHashMapOfPresized[K comparable, V any](sizeHint int, hasher ...func(maphash.Seed, K) uint64) MapOf[K, V]
     func NewIntegerMapOf[K IntegerConstraint, V any]() MapOf[K, V]
+    func NewIntegerMapOfPresized[K IntegerConstraint, V any](sizeHint int) MapOf[K, V]
     func NewMapOf[V any]() MapOf[string, V]
+    func NewMapOfPresized[V any](sizeHint int) MapOf[string, V]
     func NewTypedMapOf[K comparable, V any](hasher func(maphash.Seed, K) uint64) MapOf[K, V]
+    func NewTypedMapOfPresized[K comparable, V any](hasher func(maphash.Seed, K) uint64, sizeHint int) MapOf[K, V]
 ```
 
 **Demo**
@@ -297,6 +313,9 @@ const (
 
 	// DefaultCleanupInterval the default time interval for automatically cleaning up expired key-value pairs
 	DefaultCleanupInterval = 10 * time.Second
+
+	// DefaultMinCapacity specify the initial cache capacity (minimum capacity)
+	DefaultMinCapacity = 32 * 3
 )
 
 // EvictedCallbackOf callback function to execute when the key-value pair expires and is evicted.
@@ -312,6 +331,9 @@ type ConfigOf[K comparable, V any] struct {
 
 	// EvictedCallback executed when the key-value pair expires.
 	EvictedCallback EvictedCallbackOf[K, V]
+
+	// MinCapacity specify the initial cache capacity (minimum capacity)
+	MinCapacity int
 }
 ```
 
