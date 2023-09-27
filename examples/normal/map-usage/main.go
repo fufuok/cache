@@ -39,7 +39,7 @@ func main() {
 	m.Delete("A")
 	m.Delete("C")
 	m.Delete("D")
-	// delete is safe even if a key doesn't exists
+	// delete is safe even if a key doesn't exist
 	m.Delete("B")
 	m.Delete("E")
 
