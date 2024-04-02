@@ -23,14 +23,8 @@ type Cache interface{ ... }
     func New(opts ...Option) Cache
     func NewDefault(defaultExpiration, cleanupInterval time.Duration, ...) Cache
 type CacheOf[K comparable, V any] interface{ ... }
-    func NewHashOf[K comparable, V any](opts ...OptionOf[K, V]) CacheOf[K, V]
-    func NewHashOfDefault[K comparable, V any](defaultExpiration, cleanupInterval time.Duration, ...) CacheOf[K, V]
-    func NewIntegerOf[K IntegerConstraint, V any](opts ...OptionOf[K, V]) CacheOf[K, V]
-    func NewIntegerOfDefault[K IntegerConstraint, V any](defaultExpiration, cleanupInterval time.Duration, ...) CacheOf[K, V]
-    func NewOf[V any](opts ...OptionOf[string, V]) CacheOf[string, V]
-    func NewOfDefault[V any](defaultExpiration, cleanupInterval time.Duration, ...) CacheOf[string, V]
-    func NewTypedOf[K comparable, V any](hasher func(maphash.Seed, K) uint64, opts ...OptionOf[K, V]) CacheOf[K, V]
-    func NewTypedOfDefault[K comparable, V any](hasher func(maphash.Seed, K) uint64, ...) CacheOf[K, V]
+    func NewOf[K comparable, V any](opts ...OptionOf[K, V]) CacheOf[K, V]
+    func NewOfDefault[K comparable, V any](defaultExpiration, cleanupInterval time.Duration, ...) CacheOf[K, V]
 
 type Option func(config *Config)
     func WithCleanupInterval(interval time.Duration) Option
@@ -50,6 +44,7 @@ type OptionOf[K comparable, V any] func(config *ConfigOf[K, V])
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/fufuok/cache"
@@ -57,17 +52,16 @@ import (
 
 func main() {
 	// for generics
-	// c := cache.NewOf[int]()
-	// c := cache.NewHashOf[string, int]()
+	// c := cache.NewOf[string, int]()
 	c := cache.New()
 	c.SetForever("A", 1)
-	c.GetOrSet("B", 2, 1*time.Second) // 2 false
+	fmt.Println(c.GetOrSet("B", 2, 1*time.Second)) // 2 false
 	time.Sleep(1 * time.Second)
-	c.Get("A") // 1, true
+	fmt.Println(c.Get("A")) // 1, true
 	// for generics
-	// c.Get("B") // 0, false
-	c.Get("B") // nil, false
-	c.Count()  // 1
+	// fmt.Println(c.Get("B")) // 0, false
+	fmt.Println(c.Get("B")) // nil, false
+	fmt.Println(c.Count())  // 1
 	c.Clear()
 }
 ```
@@ -79,14 +73,8 @@ type Map interface{ ... }
     func NewMap() Map
     func NewMapPresized(sizeHint int) Map
 type MapOf[K comparable, V any] interface{ ... }
-    func NewHashMapOf[K comparable, V any](hasher ...func(maphash.Seed, K) uint64) MapOf[K, V]
-    func NewHashMapOfPresized[K comparable, V any](sizeHint int, hasher ...func(maphash.Seed, K) uint64) MapOf[K, V]
-    func NewIntegerMapOf[K IntegerConstraint, V any]() MapOf[K, V]
-    func NewIntegerMapOfPresized[K IntegerConstraint, V any](sizeHint int) MapOf[K, V]
-    func NewMapOf[V any]() MapOf[string, V]
-    func NewMapOfPresized[V any](sizeHint int) MapOf[string, V]
-    func NewTypedMapOf[K comparable, V any](hasher func(maphash.Seed, K) uint64) MapOf[K, V]
-    func NewTypedMapOfPresized[K comparable, V any](hasher func(maphash.Seed, K) uint64, sizeHint int) MapOf[K, V]
+    func NewMapOf[K comparable, V any]() MapOf[K, V]
+    func NewMapOfPresized[K comparable, V any](sizeHint int) MapOf[K, V]
 ```
 
 **Demo**
@@ -95,22 +83,23 @@ type MapOf[K comparable, V any] interface{ ... }
 package main
 
 import (
+	"fmt"
+
 	"github.com/fufuok/cache"
 )
 
 func main() {
 	// for generics
-	// m := cache.NewMapOf[int]()
-	// m := cache.NewHashMapOf[string, int]()
+	// m := cache.NewMapOf[string, int]()
 	m := cache.NewMap()
 	m.Store("A", 1)
-	m.LoadOrStore("B", 2) // 2 false
-	m.LoadAndDelete("B")  // 2, true
-	m.Load("A")           // 1, true
+	fmt.Println(m.LoadOrStore("B", 2)) // 2 false
+	fmt.Println(m.LoadAndDelete("B"))  // 2, true
+	fmt.Println(m.Load("A"))           // 1, true
 	// for generics
-	// m.Load("B") // 0, false
-	m.Load("B") // nil, false
-	m.Size()    // 1
+	// fmt.Println(m.Load("B")) // 0, false
+	fmt.Println(m.Load("B")) // nil, false
+	fmt.Println(m.Size())    // 1
 	m.Clear()
 }
 ```
@@ -351,121 +340,77 @@ type ConfigOf[K comparable, V any] struct {
   ```
 
 ```go
-go test -run=^$ -benchtime=1s -bench=^BenchmarkCache
-goos: windows
+# go test -run=^$ -benchtime=1s -bench=^BenchmarkCache
+goos: linux
 goarch: amd64
 pkg: github.com/fufuok/cache
-cpu: Intel(R) Core(TM) i5-10400 CPU @ 2.90GHz
-BenchmarkCache_NoWarmUp/99%-reads-12            63327879                19.99 ns/op
-BenchmarkCache_NoWarmUp/90%-reads-12            53017690                26.44 ns/op
-BenchmarkCache_NoWarmUp/75%-reads-12            42973477                33.68 ns/op
-BenchmarkCache_NoWarmUp/50%-reads-12            39048008                40.00 ns/op
-BenchmarkCache_NoWarmUp/0%-reads-12             28305625                51.09 ns/op
-BenchmarkCache_Hash_NoWarmUp/99%-reads-12       55992489                21.45 ns/op
-BenchmarkCache_Hash_NoWarmUp/90%-reads-12       42209230                27.90 ns/op
-BenchmarkCache_Hash_NoWarmUp/75%-reads-12       43738472                35.28 ns/op
-BenchmarkCache_Hash_NoWarmUp/50%-reads-12       26457242                43.70 ns/op
-BenchmarkCache_Hash_NoWarmUp/0%-reads-12        23198097                52.73 ns/op
-BenchmarkCache_Integer_NoWarmUp/99%-reads-12            119213346               13.26 ns/op
-BenchmarkCache_Integer_NoWarmUp/90%-reads-12            87820084                23.77 ns/op
-BenchmarkCache_Integer_NoWarmUp/75%-reads-12            42621664                28.25 ns/op
-BenchmarkCache_Integer_NoWarmUp/50%-reads-12            35653345                34.12 ns/op
-BenchmarkCache_Integer_NoWarmUp/0%-reads-12             27299094                43.52 ns/op
-BenchmarkCache_Integer_Hash_NoWarmUp/99%-reads-12       121937115               13.40 ns/op
-BenchmarkCache_Integer_Hash_NoWarmUp/90%-reads-12       55315520                22.51 ns/op
-BenchmarkCache_Integer_Hash_NoWarmUp/75%-reads-12       58547437                28.28 ns/op
-BenchmarkCache_Integer_Hash_NoWarmUp/50%-reads-12       33534188                34.66 ns/op
-BenchmarkCache_Integer_Hash_NoWarmUp/0%-reads-12        25182330                49.54 ns/op
-BenchmarkCache_WarmUp/100%-reads-12                     27032749                41.54 ns/op
-BenchmarkCache_WarmUp/99%-reads-12                      28002771                42.03 ns/op
-BenchmarkCache_WarmUp/90%-reads-12                      24318080                44.37 ns/op
-BenchmarkCache_WarmUp/75%-reads-12                      25321423                46.43 ns/op
-BenchmarkCache_WarmUp/50%-reads-12                      23165198                50.44 ns/op
-BenchmarkCache_WarmUp/0%-reads-12                       20675056                60.69 ns/op
-BenchmarkCache_Hash_WarmUp/100%-reads-12                27673744                42.87 ns/op
-BenchmarkCache_Hash_WarmUp/99%-reads-12                 27030314                43.32 ns/op
-BenchmarkCache_Hash_WarmUp/90%-reads-12                 24570778                45.62 ns/op
-BenchmarkCache_Hash_WarmUp/75%-reads-12                 23616886                48.11 ns/op
-BenchmarkCache_Hash_WarmUp/50%-reads-12                 21490394                54.07 ns/op
-BenchmarkCache_Hash_WarmUp/0%-reads-12                  20145944                62.16 ns/op
-BenchmarkCache_Integer_WarmUp/100%-reads-12             39697898                27.82 ns/op
-BenchmarkCache_Integer_WarmUp/99%-reads-12              42488253                28.25 ns/op
-BenchmarkCache_Integer_WarmUp/90%-reads-12              37295572                27.32 ns/op
-BenchmarkCache_Integer_WarmUp/75%-reads-12              37291052                29.17 ns/op
-BenchmarkCache_Integer_WarmUp/50%-reads-12              33256934                33.38 ns/op
-BenchmarkCache_Integer_WarmUp/0%-reads-12               25684106                41.51 ns/op
-BenchmarkCache_IntegerHash_WarmUp/100%-reads-12         42396534                27.99 ns/op
-BenchmarkCache_IntegerHash_WarmUp/99%-reads-12          41481296                28.24 ns/op
-BenchmarkCache_IntegerHash_WarmUp/90%-reads-12          39696848                27.51 ns/op
-BenchmarkCache_IntegerHash_WarmUp/75%-reads-12          37289198                29.37 ns/op
-BenchmarkCache_IntegerHash_WarmUp/50%-reads-12          34180827                33.49 ns/op
-BenchmarkCache_IntegerHash_WarmUp/0%-reads-12           30007651                41.30 ns/op
-BenchmarkCache_Range-12                                      118           9502503 ns/op
+cpu: AMD Ryzen 7 5700G with Radeon Graphics
+BenchmarkCache_NoWarmUp/99%-reads-16    63965202                17.95 ns/op
+BenchmarkCache_NoWarmUp/90%-reads-16    67328943                24.10 ns/op
+BenchmarkCache_NoWarmUp/75%-reads-16    58756623                23.86 ns/op
+BenchmarkCache_NoWarmUp/50%-reads-16    56851326                27.52 ns/op
+BenchmarkCache_NoWarmUp/0%-reads-16     48408231                30.44 ns/op
+BenchmarkCache_Integer_NoWarmUp/99%-reads-16            120131253               10.23 ns/op
+BenchmarkCache_Integer_NoWarmUp/90%-reads-16            100000000               13.78 ns/op
+BenchmarkCache_Integer_NoWarmUp/75%-reads-16            100000000               15.84 ns/op
+BenchmarkCache_Integer_NoWarmUp/50%-reads-16            100000000               17.66 ns/op
+BenchmarkCache_Integer_NoWarmUp/0%-reads-16             77839507                20.96 ns/op
+BenchmarkCache_WarmUp/100%-reads-16                     32617021                38.83 ns/op
+BenchmarkCache_WarmUp/99%-reads-16                      34722482                34.13 ns/op
+BenchmarkCache_WarmUp/90%-reads-16                      32676339                32.14 ns/op
+BenchmarkCache_WarmUp/75%-reads-16                      41837350                28.35 ns/op
+BenchmarkCache_WarmUp/50%-reads-16                      40624537                31.01 ns/op
+BenchmarkCache_WarmUp/0%-reads-16                       31336846                32.22 ns/op
+BenchmarkCache_Integer_WarmUp/100%-reads-16             67382474                18.11 ns/op
+BenchmarkCache_Integer_WarmUp/99%-reads-16              69214749                18.84 ns/op
+BenchmarkCache_Integer_WarmUp/90%-reads-16              71938634                16.10 ns/op
+BenchmarkCache_Integer_WarmUp/75%-reads-16              61299493                16.38 ns/op
+BenchmarkCache_Integer_WarmUp/50%-reads-16              58511590                18.37 ns/op
+BenchmarkCache_Integer_WarmUp/0%-reads-16               49336832                20.99 ns/op
+BenchmarkCache_Range-16                                      318           4516644 ns/op
 ```
 
 ```go
-go test -run=^$ -benchtime=1s -bench=^BenchmarkMap
-goos: windows
+# go test -run=^$ -benchtime=1s -bench=^BenchmarkMap
+goos: linux
 goarch: amd64
 pkg: github.com/fufuok/cache
-cpu: Intel(R) Core(TM) i5-10400 CPU @ 2.90GHz
-BenchmarkMap_NoWarmUp/99%-reads-12              63325206                19.15 ns/op
-BenchmarkMap_NoWarmUp/90%-reads-12              53744052                25.50 ns/op
-BenchmarkMap_NoWarmUp/75%-reads-12              37599992                30.76 ns/op
-BenchmarkMap_NoWarmUp/50%-reads-12              40772086                39.04 ns/op
-BenchmarkMap_NoWarmUp/0%-reads-12               29337844                49.40 ns/op
-BenchmarkMap_Hash_NoWarmUp/99%-reads-12         58235559                20.64 ns/op
-BenchmarkMap_Hash_NoWarmUp/90%-reads-12         52314478                27.29 ns/op
-BenchmarkMap_Hash_NoWarmUp/75%-reads-12         37600227                32.09 ns/op
-BenchmarkMap_Hash_NoWarmUp/50%-reads-12         31159927                40.23 ns/op
-BenchmarkMap_Hash_NoWarmUp/0%-reads-12          27935626                52.54 ns/op
-BenchmarkMap_StandardMap_NoWarmUp/99%-reads-12          25140050               163.9 ns/op
-BenchmarkMap_StandardMap_NoWarmUp/90%-reads-12           6178712               294.3 ns/op
-BenchmarkMap_StandardMap_NoWarmUp/75%-reads-12           4757120               348.8 ns/op
-BenchmarkMap_StandardMap_NoWarmUp/50%-reads-12           4043784               390.8 ns/op
-BenchmarkMap_StandardMap_NoWarmUp/0%-reads-12            3417021               401.5 ns/op
-BenchmarkMap_Integer_NoWarmUp/99%-reads-12              124007650               12.70 ns/op
-BenchmarkMap_Integer_NoWarmUp/90%-reads-12              56774936                20.68 ns/op
-BenchmarkMap_Integer_NoWarmUp/75%-reads-12              45362900                26.98 ns/op
-BenchmarkMap_Integer_NoWarmUp/50%-reads-12              34489407                34.47 ns/op
-BenchmarkMap_Integer_NoWarmUp/0%-reads-12               27501502                43.51 ns/op
-BenchmarkMap_Integer_Hash_NoWarmUp/99%-reads-12         100000000               12.40 ns/op
-BenchmarkMap_Integer_Hash_NoWarmUp/90%-reads-12         81966092                22.46 ns/op
-BenchmarkMap_Integer_Hash_NoWarmUp/75%-reads-12         45658306                25.57 ns/op
-BenchmarkMap_Integer_Hash_NoWarmUp/50%-reads-12         38508940                31.35 ns/op
-BenchmarkMap_Integer_Hash_NoWarmUp/0%-reads-12          29092020                42.06 ns/op
-BenchmarkMap_WarmUp/100%-reads-12                       29704293                39.97 ns/op
-BenchmarkMap_WarmUp/99%-reads-12                        29366491                40.35 ns/op
-BenchmarkMap_WarmUp/90%-reads-12                        27990949                42.13 ns/op
-BenchmarkMap_WarmUp/75%-reads-12                        25609778                44.32 ns/op
-BenchmarkMap_WarmUp/50%-reads-12                        24317341                48.40 ns/op
-BenchmarkMap_WarmUp/0%-reads-12                         20894202                56.75 ns/op
-BenchmarkMap_Hash_WarmUp/100%-reads-12                  28667463                42.39 ns/op
-BenchmarkMap_Hash_WarmUp/99%-reads-12                   27655759                44.14 ns/op
-BenchmarkMap_Hash_WarmUp/90%-reads-12                   27361714                44.41 ns/op
-BenchmarkMap_Hash_WarmUp/75%-reads-12                   26149032                45.68 ns/op
-BenchmarkMap_Hash_WarmUp/50%-reads-12                   24309853                50.35 ns/op
-BenchmarkMap_Hash_WarmUp/0%-reads-12                    20230082                62.05 ns/op
-BenchmarkMap_StandardMap_WarmUp/100%-reads-12           10964797                93.34 ns/op
-BenchmarkMap_StandardMap_WarmUp/99%-reads-12            10617907               106.0 ns/op
-BenchmarkMap_StandardMap_WarmUp/90%-reads-12             9165158               134.9 ns/op
-BenchmarkMap_StandardMap_WarmUp/75%-reads-12             6948925               144.5 ns/op
-BenchmarkMap_StandardMap_WarmUp/50%-reads-12             4192543               249.5 ns/op
-BenchmarkMap_StandardMap_WarmUp/0%-reads-12              2891802               466.0 ns/op
-BenchmarkMap_Integer_WarmUp/100%-reads-12               400912208                3.060 ns/op
-BenchmarkMap_Integer_WarmUp/99%-reads-12                100000000               11.58 ns/op
-BenchmarkMap_Integer_WarmUp/90%-reads-12                57717574                21.07 ns/op
-BenchmarkMap_Integer_WarmUp/75%-reads-12                55887255                26.45 ns/op
-BenchmarkMap_Integer_WarmUp/50%-reads-12                37842610                32.06 ns/op
-BenchmarkMap_Integer_WarmUp/0%-reads-12                 29015722                41.02 ns/op
-BenchmarkMap_Integer_Hash_WarmUp/100%-reads-12          399228955                3.112 ns/op
-BenchmarkMap_Integer_Hash_WarmUp/99%-reads-12           132505498               12.78 ns/op
-BenchmarkMap_Integer_Hash_WarmUp/90%-reads-12           91849152                22.55 ns/op
-BenchmarkMap_Integer_Hash_WarmUp/75%-reads-12           55890379                26.38 ns/op
-BenchmarkMap_Integer_Hash_WarmUp/50%-reads-12           31525850                32.60 ns/op
-BenchmarkMap_Integer_Hash_WarmUp/0%-reads-12            29073272                41.06 ns/op
-BenchmarkMap_Range-12                                        158           9017278 ns/op
-BenchmarkMap_RangeStandardMap-12                              80          19778909 ns/op
+cpu: AMD Ryzen 7 5700G with Radeon Graphics
+BenchmarkMap_NoWarmUp/99%-reads-16              72496048                18.52 ns/op
+BenchmarkMap_NoWarmUp/90%-reads-16              63024735                21.56 ns/op
+BenchmarkMap_NoWarmUp/75%-reads-16              59399750                25.12 ns/op
+BenchmarkMap_NoWarmUp/50%-reads-16              51399138                24.23 ns/op
+BenchmarkMap_NoWarmUp/0%-reads-16               51073983                28.00 ns/op
+BenchmarkMap_Integer_NoWarmUp/99%-reads-16              148085829                8.401 ns/op
+BenchmarkMap_Integer_NoWarmUp/90%-reads-16              100000000               12.25 ns/op
+BenchmarkMap_Integer_NoWarmUp/75%-reads-16              100000000               13.06 ns/op
+BenchmarkMap_Integer_NoWarmUp/50%-reads-16              100000000               14.64 ns/op
+BenchmarkMap_Integer_NoWarmUp/0%-reads-16               81655238                16.92 ns/op
+BenchmarkMap_StandardMap_NoWarmUp/99%-reads-16           5306242               319.2 ns/op
+BenchmarkMap_StandardMap_NoWarmUp/90%-reads-16           2906460               461.2 ns/op
+BenchmarkMap_StandardMap_NoWarmUp/75%-reads-16           2386760               504.1 ns/op
+BenchmarkMap_StandardMap_NoWarmUp/50%-reads-16           2469435               515.5 ns/op
+BenchmarkMap_StandardMap_NoWarmUp/0%-reads-16            1997181               575.5 ns/op
+BenchmarkMap_WarmUp/100%-reads-16                       37755207                31.90 ns/op
+BenchmarkMap_WarmUp/99%-reads-16                        36679430                31.53 ns/op
+BenchmarkMap_WarmUp/90%-reads-16                        45285555                26.23 ns/op
+BenchmarkMap_WarmUp/75%-reads-16                        45376821                25.98 ns/op
+BenchmarkMap_WarmUp/50%-reads-16                        35553566                28.31 ns/op
+BenchmarkMap_WarmUp/0%-reads-16                         33345013                34.30 ns/op
+BenchmarkMap_Integer_WarmUp/100%-reads-16               420121954                2.787 ns/op
+BenchmarkMap_Integer_WarmUp/99%-reads-16                161534372                7.975 ns/op
+BenchmarkMap_Integer_WarmUp/90%-reads-16                100000000               14.23 ns/op
+BenchmarkMap_Integer_WarmUp/75%-reads-16                80478811                15.98 ns/op
+BenchmarkMap_Integer_WarmUp/50%-reads-16                67574710                17.81 ns/op
+BenchmarkMap_Integer_WarmUp/0%-reads-16                 57477188                22.04 ns/op
+BenchmarkMap_StandardMap_WarmUp/100%-reads-16           13763970                77.03 ns/op
+BenchmarkMap_StandardMap_WarmUp/99%-reads-16             4539453               242.3 ns/op
+BenchmarkMap_StandardMap_WarmUp/90%-reads-16             4369597               240.1 ns/op
+BenchmarkMap_StandardMap_WarmUp/75%-reads-16             2665832               380.1 ns/op
+BenchmarkMap_StandardMap_WarmUp/50%-reads-16             2142928               500.8 ns/op
+BenchmarkMap_StandardMap_WarmUp/0%-reads-16              2104003               599.6 ns/op
+BenchmarkMap_Range-16                                        392           3183282 ns/op
+BenchmarkMap_RangeStandardMap-16                             188           6469273 ns/op
 ```
 
 

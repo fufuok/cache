@@ -4,8 +4,6 @@
 package cache
 
 import (
-	"hash/maphash"
-
 	"github.com/fufuok/cache/internal/xsync"
 )
 
@@ -79,61 +77,13 @@ type MapOf[K comparable, V any] interface {
 
 // NewMapOf creates a new HashMapOf instance with string keys.
 // The keys never expire, similar to the use of sync.Map.
-func NewMapOf[V any]() MapOf[string, V] {
-	return xsync.NewMapOf[V]()
+func NewMapOf[K comparable, V any]() MapOf[K, V] {
+	return xsync.NewMapOf[K, V]()
 }
 
 // NewMapOfPresized creates a new MapOf instance with string keys and capacity
 // enough to hold sizeHint entries. If sizeHint is zero or negative, the value
 // is ignored.
-func NewMapOfPresized[V any](sizeHint int) MapOf[string, V] {
-	return xsync.NewMapOfPresized[V](sizeHint)
-}
-
-// NewIntegerMapOf creates a new HashMapOf instance with integer typed keys.
-func NewIntegerMapOf[K IntegerConstraint, V any]() MapOf[K, V] {
-	return xsync.NewIntegerMapOf[K, V]()
-}
-
-// NewIntegerMapOfPresized creates a new MapOf instance with integer typed keys
-// and capacity enough to hold sizeHint entries. If sizeHint is zero or
-// negative, the value is ignored.
-func NewIntegerMapOfPresized[K IntegerConstraint, V any](sizeHint int) MapOf[K, V] {
-	return xsync.NewIntegerMapOfPresized[K, V](sizeHint)
-}
-
-// NewHashMapOf creates a new HashMapOf instance with arbitrarily typed keys.
-// If no hasher is specified, an automatic generation will be attempted.
-// Hashable allowed map key types constraint.
-// Automatically generated hashes for these types are safe:
-//
-//	type Hashable interface {
-//		~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
-//		~float32 | ~float64 | ~string | ~complex64 | ~complex128
-//	}
-func NewHashMapOf[K comparable, V any](hasher ...func(maphash.Seed, K) uint64) MapOf[K, V] {
-	return xsync.NewHashMapOf[K, V](hasher...)
-}
-
-func NewHashMapOfPresized[K comparable, V any](sizeHint int, hasher ...func(maphash.Seed, K) uint64) MapOf[K, V] {
-	return xsync.NewHashMapOfPresized[K, V](sizeHint, hasher...)
-}
-
-// NewTypedMapOf creates a new HashMapOf instance with arbitrarily typed keys.
-// Keys are hashed to uint64 using the hasher function. Note that StrHash64
-// function might be handy when writing the hasher function for structs with
-// string fields.
-func NewTypedMapOf[K comparable, V any](hasher func(maphash.Seed, K) uint64) MapOf[K, V] {
-	return xsync.NewTypedMapOf[K, V](hasher)
-}
-
-// NewTypedMapOfPresized creates a new MapOf instance with arbitrarily typed
-// keys and capacity enough to hold sizeHint entries. If sizeHint is zero or
-// negative, the value is ignored.
-//
-// Keys are hashed to uint64 using the hasher function. It is strongly
-// recommended to use the hash/maphash package to implement hasher. See the
-// example for how to do that.
-func NewTypedMapOfPresized[K comparable, V any](hasher func(maphash.Seed, K) uint64, sizeHint int) MapOf[K, V] {
-	return xsync.NewTypedMapOfPresized[K, V](hasher, sizeHint)
+func NewMapOfPresized[K comparable, V any](sizeHint int) MapOf[K, V] {
+	return xsync.NewMapOfPresized[K, V](sizeHint)
 }

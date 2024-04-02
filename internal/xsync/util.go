@@ -42,5 +42,5 @@ func parallelism() uint32 {
 }
 
 //go:noescape
-//go:linkname fastrand runtime.fastrand
-func fastrand() uint32
+//go:linkname runtime_fastrand runtime.fastrand
+func runtime_fastrand() uint32

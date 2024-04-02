@@ -4,7 +4,6 @@
 package cache
 
 import (
-	"hash/maphash"
 	"reflect"
 	"strconv"
 	"sync/atomic"
@@ -21,7 +20,7 @@ func mockXsyncMapOf(cfg ...ConfigOf[string, any]) CacheOf[string, any] {
 			},
 		}
 	}
-	c := newXsyncMapOf[any](cfg...)
+	c := newXsyncMapOf[string, any](cfg...)
 	for _, x := range testKVOf {
 		c.SetDefault(x.k, x.v)
 	}
@@ -38,21 +37,16 @@ func TestXsyncMapOf_Expire(t *testing.T) {
 			CleanupInterval:   interval,
 		},
 	}
-	hasher := func(_ maphash.Seed, k string) uint64 {
-		return StrHash64(k)
-	}
 	caches := []CacheOf[string, int]{
-		newXsyncMapOf[int](cfg...),
-		newXsyncMapOfDefault[int](exp, interval),
-		newXsyncTypedMapOf[string, int](hasher, cfg...),
-		newXsyncTypedMapOfDefault[string, int](hasher, exp, interval),
+		newXsyncMapOf[string, int](cfg...),
+		newXsyncMapOfDefault[string, int](exp, interval),
 	}
 	for _, c := range caches {
 		c.Set("a", 1, 0)
 		c.Set("b", 2, DefaultExpiration)
 		c.Set("c", 3, NoExpiration)
 		c.Set("d", 4, 20*time.Millisecond)
-		c.Set("e", 5, 100*time.Millisecond)
+		c.Set("e", 5, 150*time.Millisecond)
 
 		<-time.After(25 * time.Millisecond)
 		_, ok := c.Get("d")
@@ -78,7 +72,7 @@ func TestXsyncMapOf_Expire(t *testing.T) {
 			t.Fatal("key e has not expired but was not found")
 		}
 
-		<-time.After(50 * time.Millisecond)
+		<-time.After(100 * time.Millisecond)
 		_, ok = c.Get("e")
 		if ok {
 			t.Fatal("key e should be automatically deleted")
@@ -126,7 +120,7 @@ func TestXsyncMapOf_SetAndGet(t *testing.T) {
 
 func TestXsyncMapOf_SetDefault_WithoutCleanup(t *testing.T) {
 	defaultExpiration := 50 * time.Millisecond
-	c := newXsyncMapOfDefault[int](defaultExpiration, 0)
+	c := newXsyncMapOfDefault[string, int](defaultExpiration, 0)
 	c.SetDefault("x", 1)
 	v, ok := c.Get("x")
 	if !ok || v != 1 {
@@ -154,7 +148,7 @@ func TestXsyncMapOf_SetDefault_WithoutCleanup(t *testing.T) {
 
 func TestXsyncMapOf_SetDefault(t *testing.T) {
 	defaultExpiration := 50 * time.Millisecond
-	c := newXsyncMapOfDefault[int](defaultExpiration, testCleanupInterval)
+	c := newXsyncMapOfDefault[string, int](defaultExpiration, testCleanupInterval)
 	c.SetDefault("x", 1)
 	v, ok := c.Get("x")
 	if !ok || v != 1 {
@@ -182,7 +176,7 @@ func TestXsyncMapOf_SetDefault(t *testing.T) {
 
 func TestXsyncMapOf_SetForever(t *testing.T) {
 	defaultExpiration := 50 * time.Millisecond
-	c := newXsyncMapOfDefault[int](defaultExpiration, testCleanupInterval)
+	c := newXsyncMapOfDefault[string, int](defaultExpiration, testCleanupInterval)
 	c.SetForever("x", 1)
 	v, ok := c.Get("x")
 	if !ok || v != 1 {
@@ -198,7 +192,7 @@ func TestXsyncMapOf_SetForever(t *testing.T) {
 
 func TestXsyncMapOf_GetOrSet(t *testing.T) {
 	exp := 20 * time.Millisecond
-	c := newXsyncMapOfDefault[int](exp, testCleanupInterval)
+	c := newXsyncMapOfDefault[string, int](exp, testCleanupInterval)
 	v, ok := c.GetOrSet("x", 1, 0)
 	if ok {
 		t.Fatal("key x should not loaded")
@@ -224,7 +218,7 @@ func TestXsyncMapOf_GetOrSet(t *testing.T) {
 
 func TestXsyncMapOf_GetAndSet(t *testing.T) {
 	exp := 20 * time.Millisecond
-	c := newXsyncMapOfDefault[int](exp, testCleanupInterval)
+	c := newXsyncMapOfDefault[string, int](exp, testCleanupInterval)
 	v, ok := c.GetAndSet("x", 1, 0)
 	if ok {
 		t.Fatal("key x should not loaded")
@@ -254,7 +248,7 @@ func TestXsyncMapOf_GetAndSet(t *testing.T) {
 }
 
 func TestXsyncMapOf_GetAndRefresh(t *testing.T) {
-	c := newXsyncMapOfDefault[int](100*time.Millisecond, testCleanupInterval)
+	c := newXsyncMapOfDefault[string, int](100*time.Millisecond, testCleanupInterval)
 	c.SetDefault("x", 1)
 	v, tm, ok := c.GetWithExpiration("x")
 	if !ok || v != 1 || tm.Before(time.Now()) {
@@ -294,7 +288,7 @@ func TestXsyncMapOf_GetAndRefresh(t *testing.T) {
 
 func TestXsyncMapOf_GetOrCompute(t *testing.T) {
 	const numEntries = 1000
-	c := newXsyncMapOf[int](ConfigOf[string, int]{MinCapacity: numEntries})
+	c := newXsyncMapOf[string, int](ConfigOf[string, int]{MinCapacity: numEntries})
 	for i := 0; i < numEntries; i++ {
 		v, loaded := c.GetOrCompute(strconv.Itoa(i), func() int {
 			return i
@@ -320,7 +314,7 @@ func TestXsyncMapOf_GetOrCompute(t *testing.T) {
 }
 
 func TestXsyncMapOf_GetOrCompute_WithKeyExpired(t *testing.T) {
-	c := newXsyncMapOf[int]()
+	c := newXsyncMapOf[string, int]()
 	v, loaded := c.GetOrCompute("1", func() int {
 		return 1
 	}, 0)
@@ -363,10 +357,7 @@ func TestXsyncMapOf_GetOrCompute_WithKeyExpired(t *testing.T) {
 }
 
 func TestXsyncMapOf_GetOrCompute_FunctionCalledOnce(t *testing.T) {
-	hasher := func(s maphash.Seed, k int) uint64 {
-		return HashSeedUint64(s, uint64(k))
-	}
-	c := newXsyncTypedMapOf[int, int](hasher)
+	c := newXsyncMapOf[int, int]()
 	for i := 0; i < 100; {
 		c.GetOrCompute(i, func() (v int) {
 			v, i = i, i+1
@@ -382,7 +373,7 @@ func TestXsyncMapOf_GetOrCompute_FunctionCalledOnce(t *testing.T) {
 }
 
 func TestXsyncMapOf_Compute(t *testing.T) {
-	c := newXsyncMapOf[int]()
+	c := newXsyncMapOf[string, int]()
 	// Store a new value.
 	v, ok := c.Compute("foobar", func(oldValue int, loaded bool) (newValue int, delete bool) {
 		if oldValue != 0 {
@@ -496,7 +487,7 @@ func TestXsyncMapOf_Compute(t *testing.T) {
 }
 
 func TestXsyncMapOf_GetAndDelete(t *testing.T) {
-	c := newXsyncMapOf[int]()
+	c := newXsyncMapOf[string, int]()
 	v, ok := c.GetAndDelete("x")
 	if ok || v != 0 {
 		t.Fatal("key a should not exist")
@@ -516,7 +507,7 @@ func TestXsyncMapOf_GetAndDelete(t *testing.T) {
 }
 
 func TestXsyncMapOf_Delete(t *testing.T) {
-	c := newXsyncMapOf[int]()
+	c := newXsyncMapOf[string, int]()
 	c.Delete("x")
 
 	c.SetForever("x", 1)
@@ -538,7 +529,7 @@ func TestXsyncMapOf_DeleteExpired(t *testing.T) {
 	testEvictedCallback := func(k string, v int64) {
 		atomic.AddInt64(&n, v)
 	}
-	c := newXsyncMapOfDefault[int64](10*time.Millisecond, 5*time.Millisecond, testEvictedCallback)
+	c := newXsyncMapOfDefault[string, int64](10*time.Millisecond, 5*time.Millisecond, testEvictedCallback)
 	for i := 0; i < 10; i++ {
 		c.SetDefault(strconv.Itoa(i), int64(i))
 	}
@@ -561,7 +552,7 @@ func TestXsyncMapOf_Range(t *testing.T) {
 		atomic.AddInt64(&n, v)
 		return true
 	}
-	c := newXsyncMapOf[int64]()
+	c := newXsyncMapOf[string, int64]()
 	for i := 0; i < 10; i++ {
 		c.SetDefault(strconv.Itoa(i), int64(i))
 	}

@@ -17,26 +17,7 @@ func BenchmarkMap_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewMapOfPresized[int](benchmarkNumEntries)
-			benchmarkMap(b, func(k string) (int, bool) {
-				return m.Load(k)
-			}, func(k string, v int) {
-				m.Store(k, v)
-			}, func(k string) {
-				m.Delete(k)
-			}, bc.readPercentage)
-		})
-	}
-}
-
-func BenchmarkMap_Hash_NoWarmUp(b *testing.B) {
-	for _, bc := range benchmarkCases {
-		if bc.readPercentage == 100 {
-			// This benchmark doesn't make sense without a warm-up.
-			continue
-		}
-		b.Run(bc.name, func(b *testing.B) {
-			m := NewHashMapOfPresized[string, int](benchmarkNumEntries)
+			m := NewMapOfPresized[string, int](benchmarkNumEntries)
 			benchmarkMap(b, func(k string) (int, bool) {
 				return m.Load(k)
 			}, func(k string, v int) {
@@ -55,26 +36,7 @@ func BenchmarkMap_Integer_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewIntegerMapOfPresized[int, int](benchmarkNumEntries)
-			benchmarkIntegerMap(b, func(k int) (int, bool) {
-				return m.Load(k)
-			}, func(k int, v int) {
-				m.Store(k, v)
-			}, func(k int) {
-				m.Delete(k)
-			}, bc.readPercentage)
-		})
-	}
-}
-
-func BenchmarkMap_Integer_Hash_NoWarmUp(b *testing.B) {
-	for _, bc := range benchmarkCases {
-		if bc.readPercentage == 100 {
-			// This benchmark doesn't make sense without a warm-up.
-			continue
-		}
-		b.Run(bc.name, func(b *testing.B) {
-			m := NewHashMapOfPresized[int, int](benchmarkNumEntries)
+			m := NewMapOfPresized[int, int](benchmarkNumEntries)
 			benchmarkIntegerMap(b, func(k int) (int, bool) {
 				return m.Load(k)
 			}, func(k int, v int) {
@@ -113,25 +75,7 @@ func BenchmarkMap_StandardMap_NoWarmUp(b *testing.B) {
 func BenchmarkMap_WarmUp(b *testing.B) {
 	for _, bc := range benchmarkCases {
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewMapOf[int]()
-			for i := 0; i < benchmarkNumEntries; i++ {
-				m.Store(benchmarkKeyPrefix+strconv.Itoa(i), i)
-			}
-			benchmarkMap(b, func(k string) (int, bool) {
-				return m.Load(k)
-			}, func(k string, v int) {
-				m.Store(k, v)
-			}, func(k string) {
-				m.Delete(k)
-			}, bc.readPercentage)
-		})
-	}
-}
-
-func BenchmarkMap_Hash_WarmUp(b *testing.B) {
-	for _, bc := range benchmarkCases {
-		b.Run(bc.name, func(b *testing.B) {
-			m := NewHashMapOf[string, int]()
+			m := NewMapOf[string, int]()
 			for i := 0; i < benchmarkNumEntries; i++ {
 				m.Store(benchmarkKeyPrefix+strconv.Itoa(i), i)
 			}
@@ -148,31 +92,12 @@ func BenchmarkMap_Hash_WarmUp(b *testing.B) {
 
 func BenchmarkMap_Integer_WarmUp(b *testing.B) {
 	for _, bc := range benchmarkCases {
-		m := NewIntegerMapOf[int, int]()
+		m := NewMapOf[int, int]()
 		for i := 0; i < benchmarkNumEntries; i++ {
 			m.Store(i, i)
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewIntegerMapOf[int, int]()
-			benchmarkIntegerMap(b, func(k int) (int, bool) {
-				return m.Load(k)
-			}, func(k int, v int) {
-				m.Store(k, v)
-			}, func(k int) {
-				m.Delete(k)
-			}, bc.readPercentage)
-		})
-	}
-}
-
-func BenchmarkMap_Integer_Hash_WarmUp(b *testing.B) {
-	for _, bc := range benchmarkCases {
-		m := NewHashMapOf[int, int]()
-		for i := 0; i < benchmarkNumEntries; i++ {
-			m.Store(i, i)
-		}
-		b.Run(bc.name, func(b *testing.B) {
-			m := NewIntegerMapOf[int, int]()
+			m := NewMapOf[int, int]()
 			benchmarkIntegerMap(b, func(k int) (int, bool) {
 				return m.Load(k)
 			}, func(k int, v int) {
@@ -214,16 +139,16 @@ func benchmarkMap(
 	loadFn func(k string) (int, bool),
 	storeFn func(k string, v int),
 	deleteFn func(k string),
-	readPercentage int) {
-
+	readPercentage int,
+) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		// convert percent to permille to support 99% case
 		storeThreshold := 10 * readPercentage
 		deleteThreshold := 10*readPercentage + ((1000 - 10*readPercentage) / 2)
 		for pb.Next() {
-			op := int(FastRand() % 1000)
-			i := int(FastRand() % benchmarkNumEntries)
+			op := int(runtimeFastrand() % 1000)
+			i := int(runtimeFastrand() % benchmarkNumEntries)
 			if op >= deleteThreshold {
 				deleteFn(benchmarkKeys[i])
 			} else if op >= storeThreshold {
@@ -240,16 +165,16 @@ func benchmarkIntegerMap(
 	loadFn func(k int) (int, bool),
 	storeFn func(k int, v int),
 	deleteFn func(k int),
-	readPercentage int) {
-
+	readPercentage int,
+) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		// convert percent to permille to support 99% case
 		storeThreshold := 10 * readPercentage
 		deleteThreshold := 10*readPercentage + ((1000 - 10*readPercentage) / 2)
 		for pb.Next() {
-			op := int(FastRand() % 1000)
-			i := int(FastRand() % benchmarkNumEntries)
+			op := int(runtimeFastrand() % 1000)
+			i := int(runtimeFastrand() % benchmarkNumEntries)
 			if op >= deleteThreshold {
 				deleteFn(benchmarkIntegerKeys[i])
 			} else if op >= storeThreshold {
@@ -262,7 +187,7 @@ func benchmarkIntegerMap(
 }
 
 func BenchmarkMap_Range(b *testing.B) {
-	m := NewMapOf[int]()
+	m := NewMapOf[string, int]()
 	for i := 0; i < benchmarkNumEntries; i++ {
 		m.Store(benchmarkKeys[i], i)
 	}

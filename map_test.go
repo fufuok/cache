@@ -49,6 +49,7 @@ func TestMap_UniqueValuePointers_Nil(t *testing.T) {
 	m.Store("foo", nil)
 	m.Store("foo", nil)
 }
+
 func TestMap_MissingEntry(t *testing.T) {
 	m := NewMap()
 	v, ok := m.Load("foo")

@@ -126,12 +126,5 @@ func NewDefault(
 	cleanupInterval time.Duration,
 	evictedCallback ...EvictedCallback,
 ) Cache {
-	opts := []Option{
-		WithDefaultExpiration(defaultExpiration),
-		WithCleanupInterval(cleanupInterval),
-	}
-	if len(evictedCallback) > 0 {
-		opts = append(opts, WithEvictedCallback(evictedCallback[0]))
-	}
-	return New(opts...)
+	return newXsyncMapDefault(defaultExpiration, cleanupInterval, evictedCallback...)
 }

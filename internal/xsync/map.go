@@ -2,7 +2,6 @@ package xsync
 
 import (
 	"fmt"
-	"hash/maphash"
 	"math"
 	"runtime"
 	"strings"
@@ -31,10 +30,8 @@ const (
 	// key-value pairs (this is a soft limit)
 	mapLoadFactor = 0.75
 	// minimal table size, i.e. number of buckets; thus, minimal map
-	// capacity can be calculated as entriesPerMapBucket*minMapTableLen
-	minMapTableLen = 32
-	// minimal table capacity
-	minMapTableCap = minMapTableLen * entriesPerMapBucket
+	// capacity can be calculated as entriesPerMapBucket*defaultMinMapTableLen
+	defaultMinMapTableLen = 32
 	// minimum counter stripes to use
 	minMapCounterLen = 8
 	// maximum counter stripes to use; stands for around 4KB of memory
@@ -77,6 +74,7 @@ type Map struct {
 	resizeMu     sync.Mutex     // only used along with resizeCond
 	resizeCond   sync.Cond      // used to wake up resize waiters (concurrent modifications)
 	table        unsafe.Pointer // *mapTable
+	minTableLen  int
 }
 
 type mapTable struct {
@@ -85,7 +83,7 @@ type mapTable struct {
 	// used to determine if a table shrinking is needed
 	// occupies min(buckets_memory/1024, 64KB) of memory
 	size []counterStripe
-	seed maphash.Seed
+	seed uint64
 }
 
 type counterStripe struct {
@@ -122,28 +120,32 @@ type rangeEntry struct {
 
 // NewMap creates a new Map instance.
 func NewMap() *Map {
-	return NewMapPresized(minMapTableCap)
+	return NewMapPresized(defaultMinMapTableLen * entriesPerMapBucket)
 }
 
 // NewMapPresized creates a new Map instance with capacity enough to hold
-// sizeHint entries. If sizeHint is zero or negative, the value is ignored.
+// sizeHint entries. The capacity is treated as the minimal capacity
+// meaning that the underlying hash table will never shrink to
+// a smaller capacity. If sizeHint is zero or negative, the value
+// is ignored.
 func NewMapPresized(sizeHint int) *Map {
 	m := &Map{}
 	m.resizeCond = *sync.NewCond(&m.resizeMu)
 	var table *mapTable
-	if sizeHint <= minMapTableCap {
-		table = newMapTable(minMapTableLen)
+	if sizeHint <= defaultMinMapTableLen*entriesPerMapBucket {
+		table = newMapTable(defaultMinMapTableLen)
 	} else {
 		tableLen := nextPowOf2(uint32(sizeHint / entriesPerMapBucket))
 		table = newMapTable(int(tableLen))
 	}
+	m.minTableLen = len(table.buckets)
 	atomic.StorePointer(&m.table, unsafe.Pointer(table))
 	return m
 }
 
-func newMapTable(tableLen int) *mapTable {
-	buckets := make([]bucketPadded, tableLen)
-	counterLen := tableLen >> 10
+func newMapTable(minTableLen int) *mapTable {
+	buckets := make([]bucketPadded, minTableLen)
+	counterLen := minTableLen >> 10
 	if counterLen < minMapCounterLen {
 		counterLen = minMapCounterLen
 	} else if counterLen > maxMapCounterLen {
@@ -153,7 +155,7 @@ func newMapTable(tableLen int) *mapTable {
 	t := &mapTable{
 		buckets: buckets,
 		size:    counter,
-		seed:    maphash.MakeSeed(),
+		seed:    makeSeed(),
 	}
 	return t
 }
@@ -163,7 +165,7 @@ func newMapTable(tableLen int) *mapTable {
 // The ok result indicates whether value was found in the map.
 func (m *Map) Load(key string) (value interface{}, ok bool) {
 	table := (*mapTable)(atomic.LoadPointer(&m.table))
-	hash := hashString(table.seed, key)
+	hash := hashString(key, table.seed)
 	bidx := uint64(len(table.buckets)-1) & hash
 	b := &table.buckets[bidx]
 	for {
@@ -241,6 +243,11 @@ func (m *Map) LoadAndStore(key string, value interface{}) (actual interface{}, l
 // Otherwise, it computes the value using the provided function and
 // returns the computed value. The loaded result is true if the value
 // was loaded, false if stored.
+//
+// This call locks a hash table bucket while the compute function
+// is executed. It means that modifications on other entries in
+// the bucket will be blocked until the valueFn executes. Consider
+// this when the function includes long-running operations.
 func (m *Map) LoadOrCompute(key string, valueFn func() interface{}) (actual interface{}, loaded bool) {
 	return m.doCompute(
 		key,
@@ -259,6 +266,11 @@ func (m *Map) LoadOrCompute(key string, valueFn func() interface{}) (actual inte
 // The ok result indicates whether value was computed and stored, thus, is
 // present in the map. The actual result contains the new value in cases where
 // the value was computed and stored. See the example for a few use cases.
+//
+// This call locks a hash table bucket while the compute function
+// is executed. It means that modifications on other entries in
+// the bucket will be blocked until the valueFn executes. Consider
+// this when the function includes long-running operations.
 func (m *Map) Compute(
 	key string,
 	valueFn func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool),
@@ -313,19 +325,21 @@ func (m *Map) doCompute(
 		)
 		table := (*mapTable)(atomic.LoadPointer(&m.table))
 		tableLen := len(table.buckets)
-		hash := hashString(table.seed, key)
+		hash := hashString(key, table.seed)
 		bidx := uint64(len(table.buckets)-1) & hash
 		rootb := &table.buckets[bidx]
 		lockBucket(&rootb.topHashMutex)
-		if m.newerTableExists(table) {
-			// Someone resized the table. Go for another attempt.
-			unlockBucket(&rootb.topHashMutex)
-			goto compute_attempt
-		}
+		// The following two checks must go in reverse to what's
+		// in the resize method.
 		if m.resizeInProgress() {
 			// Resize is in progress. Wait, then go for another attempt.
 			unlockBucket(&rootb.topHashMutex)
 			m.waitForResize()
+			goto compute_attempt
+		}
+		if m.newerTableExists(table) {
+			// Someone resized the table. Go for another attempt.
+			unlockBucket(&rootb.topHashMutex)
 			goto compute_attempt
 		}
 		b := rootb
@@ -455,13 +469,12 @@ func (m *Map) waitForResize() {
 	m.resizeMu.Unlock()
 }
 
-func (m *Map) resize(table *mapTable, hint mapResizeHint) {
-	var shrinkThreshold int64
-	tableLen := len(table.buckets)
+func (m *Map) resize(knownTable *mapTable, hint mapResizeHint) {
+	knownTableLen := len(knownTable.buckets)
 	// Fast path for shrink attempts.
 	if hint == mapShrinkHint {
-		shrinkThreshold = int64((tableLen * entriesPerMapBucket) / mapShrinkFraction)
-		if tableLen == minMapTableLen || table.sumSize() > shrinkThreshold {
+		shrinkThreshold := int64((knownTableLen * entriesPerMapBucket) / mapShrinkFraction)
+		if knownTableLen == m.minTableLen || knownTable.sumSize() > shrinkThreshold {
 			return
 		}
 	}
@@ -472,13 +485,16 @@ func (m *Map) resize(table *mapTable, hint mapResizeHint) {
 		return
 	}
 	var newTable *mapTable
+	table := (*mapTable)(atomic.LoadPointer(&m.table))
+	tableLen := len(table.buckets)
 	switch hint {
 	case mapGrowHint:
 		// Grow the table with factor of 2.
 		atomic.AddInt64(&m.totalGrowths, 1)
 		newTable = newMapTable(tableLen << 1)
 	case mapShrinkHint:
-		if table.sumSize() <= shrinkThreshold {
+		shrinkThreshold := int64((tableLen * entriesPerMapBucket) / mapShrinkFraction)
+		if tableLen > m.minTableLen && table.sumSize() <= shrinkThreshold {
 			// Shrink the table with factor of 2.
 			atomic.AddInt64(&m.totalShrinks, 1)
 			newTable = newMapTable(tableLen >> 1)
@@ -491,7 +507,7 @@ func (m *Map) resize(table *mapTable, hint mapResizeHint) {
 			return
 		}
 	case mapClearHint:
-		newTable = newMapTable(minMapTableLen)
+		newTable = newMapTable(m.minTableLen)
 	default:
 		panic(fmt.Sprintf("unexpected resize hint: %d", hint))
 	}
@@ -517,7 +533,7 @@ func copyBucket(b *bucketPadded, destTable *mapTable) (copied int) {
 		for i := 0; i < entriesPerMapBucket; i++ {
 			if b.keys[i] != nil {
 				k := derefKey(b.keys[i])
-				hash := hashString(destTable.seed, k)
+				hash := hashString(k, destTable.seed)
 				bidx := uint64(len(destTable.buckets)-1) & hash
 				destb := &destTable.buckets[bidx]
 				appendToBucket(hash, b.keys[i], b.values[i], destb)
@@ -578,9 +594,10 @@ func isEmptyBucket(rootb *bucketPadded) bool {
 // may reflect any mapping for that key from any point during the
 // Range call.
 //
-// It is safe to modify the map while iterating it. However, the
-// concurrent modification rule apply, i.e. the changes may be not
-// reflected in the subsequently iterated entries.
+// It is safe to modify the map while iterating it, including entry
+// creation, modification and deletion. However, the concurrent
+// modification rule apply, i.e. the changes may be not reflected
+// in the subsequently iterated entries.
 func (m *Map) Range(f func(key string, value interface{}) bool) {
 	var zeroEntry rangeEntry
 	// Pre-allocate array big enough to fit entries for most hash tables.

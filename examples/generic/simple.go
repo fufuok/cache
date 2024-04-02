@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	c := cache.NewOf[int]()
+	c := cache.NewOf[string, int]()
 
 	c.Set("A", 1, 1*time.Minute)
 

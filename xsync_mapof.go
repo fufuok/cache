@@ -4,7 +4,6 @@
 package cache
 
 import (
-	"hash/maphash"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -28,19 +27,13 @@ type xsyncMapOf[K comparable, V any] struct {
 	stop              chan struct{}
 }
 
-// Create a new cache with string typed keys, optionally specifying configuration items.
-func newXsyncMapOf[V any](config ...ConfigOf[string, V]) CacheOf[string, V] {
-	return newXsyncTypedMapOf[string, V](HashSeedString, config...)
-}
-
-// Create a new cache with arbitrarily typed keys, optionally specifying configuration items.
-func newXsyncTypedMapOf[K comparable, V any](
-	hasher func(maphash.Seed, K) uint64,
+// Creates a new MapOf instance with capacity enough to hold sizeHint entries.
+func newXsyncMapOf[K comparable, V any](
 	config ...ConfigOf[K, V],
 ) CacheOf[K, V] {
 	cfg := configDefaultOf(config...)
 	c := &xsyncMapOf[K, V]{
-		items: xsync.NewTypedMapOfPresized[K, itemOf[V]](hasher, cfg.MinCapacity),
+		items: xsync.NewMapOfPresized[K, itemOf[V]](cfg.MinCapacity),
 		stop:  make(chan struct{}),
 	}
 	c.defaultExpiration.Store(cfg.DefaultExpiration)
@@ -66,24 +59,11 @@ func newXsyncTypedMapOf[K comparable, V any](
 	return cache
 }
 
-// Create a new cache with integer typed keys,
-// specifying the default expiration duration and cleanup interval.
-// If the cleanup interval is less than 1, the cleanup needs to be performed manually,
-// calling c.DeleteExpired()
-func newXsyncMapOfDefault[V any](
-	defaultExpiration,
-	cleanupInterval time.Duration,
-	evictedCallback ...EvictedCallbackOf[string, V],
-) CacheOf[string, V] {
-	return newXsyncTypedMapOfDefault[string, V](HashSeedString, defaultExpiration, cleanupInterval, evictedCallback...)
-}
-
 // Create a new cache with arbitrarily typed keys,
 // specifying the default expiration duration and cleanup interval.
 // If the cleanup interval is less than 1, the cleanup needs to be performed manually,
 // calling c.DeleteExpired()
-func newXsyncTypedMapOfDefault[K comparable, V any](
-	hasher func(maphash.Seed, K) uint64,
+func newXsyncMapOfDefault[K comparable, V any](
 	defaultExpiration,
 	cleanupInterval time.Duration,
 	evictedCallback ...EvictedCallbackOf[K, V],
@@ -95,7 +75,7 @@ func newXsyncTypedMapOfDefault[K comparable, V any](
 	if len(evictedCallback) > 0 {
 		cfg.EvictedCallback = evictedCallback[0]
 	}
-	return newXsyncTypedMapOf[K, V](hasher, cfg)
+	return newXsyncMapOf[K, V](cfg)
 }
 
 // Set add item to the cache, replacing any existing items.

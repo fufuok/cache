@@ -6,6 +6,7 @@ package cache
 import (
 	"strconv"
 	"testing"
+	_ "unsafe"
 )
 
 // Ref: https://github.com/puzpuzpuz/xsync/blob/main/map_test.go
@@ -49,26 +50,7 @@ func BenchmarkCache_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewOf[int](WithMinCapacityOf[string, int](benchmarkNumEntries))
-			benchmarkCache(b, func(k string) (int, bool) {
-				return m.Get(k)
-			}, func(k string, v int) {
-				m.SetForever(k, v)
-			}, func(k string) {
-				m.Delete(k)
-			}, bc.readPercentage)
-		})
-	}
-}
-
-func BenchmarkCache_Hash_NoWarmUp(b *testing.B) {
-	for _, bc := range benchmarkCases {
-		if bc.readPercentage == 100 {
-			// This benchmark doesn't make sense without a warm-up.
-			continue
-		}
-		b.Run(bc.name, func(b *testing.B) {
-			m := NewHashOf[string, int](WithMinCapacityOf[string, int](benchmarkNumEntries))
+			m := NewOf[string, int](WithMinCapacityOf[string, int](benchmarkNumEntries))
 			benchmarkCache(b, func(k string) (int, bool) {
 				return m.Get(k)
 			}, func(k string, v int) {
@@ -87,26 +69,7 @@ func BenchmarkCache_Integer_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewIntegerOf[int, int](WithMinCapacityOf[int, int](benchmarkNumEntries))
-			benchmarkIntegerCache(b, func(k int) (int, bool) {
-				return m.Get(k)
-			}, func(k int, v int) {
-				m.SetForever(k, v)
-			}, func(k int) {
-				m.Delete(k)
-			}, bc.readPercentage)
-		})
-	}
-}
-
-func BenchmarkCache_Integer_Hash_NoWarmUp(b *testing.B) {
-	for _, bc := range benchmarkCases {
-		if bc.readPercentage == 100 {
-			// This benchmark doesn't make sense without a warm-up.
-			continue
-		}
-		b.Run(bc.name, func(b *testing.B) {
-			m := NewHashOf[int, int](WithMinCapacityOf[int, int](benchmarkNumEntries))
+			m := NewOf[int, int](WithMinCapacityOf[int, int](benchmarkNumEntries))
 			benchmarkIntegerCache(b, func(k int) (int, bool) {
 				return m.Get(k)
 			}, func(k int, v int) {
@@ -121,25 +84,7 @@ func BenchmarkCache_Integer_Hash_NoWarmUp(b *testing.B) {
 func BenchmarkCache_WarmUp(b *testing.B) {
 	for _, bc := range benchmarkCases {
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewOf[int]()
-			for i := 0; i < benchmarkNumEntries; i++ {
-				m.SetForever(benchmarkKeyPrefix+strconv.Itoa(i), i)
-			}
-			benchmarkCache(b, func(k string) (int, bool) {
-				return m.Get(k)
-			}, func(k string, v int) {
-				m.SetForever(k, v)
-			}, func(k string) {
-				m.Delete(k)
-			}, bc.readPercentage)
-		})
-	}
-}
-
-func BenchmarkCache_Hash_WarmUp(b *testing.B) {
-	for _, bc := range benchmarkCases {
-		b.Run(bc.name, func(b *testing.B) {
-			m := NewHashOf[string, int]()
+			m := NewOf[string, int]()
 			for i := 0; i < benchmarkNumEntries; i++ {
 				m.SetForever(benchmarkKeyPrefix+strconv.Itoa(i), i)
 			}
@@ -157,25 +102,7 @@ func BenchmarkCache_Hash_WarmUp(b *testing.B) {
 func BenchmarkCache_Integer_WarmUp(b *testing.B) {
 	for _, bc := range benchmarkCases {
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewIntegerOf[int, int]()
-			for i := 0; i < benchmarkNumEntries; i++ {
-				m.SetForever(i, i)
-			}
-			benchmarkIntegerCache(b, func(k int) (int, bool) {
-				return m.Get(k)
-			}, func(k int, v int) {
-				m.SetForever(k, v)
-			}, func(k int) {
-				m.Delete(k)
-			}, bc.readPercentage)
-		})
-	}
-}
-
-func BenchmarkCache_IntegerHash_WarmUp(b *testing.B) {
-	for _, bc := range benchmarkCases {
-		b.Run(bc.name, func(b *testing.B) {
-			m := NewHashOf[int, int]()
+			m := NewOf[int, int]()
 			for i := 0; i < benchmarkNumEntries; i++ {
 				m.SetForever(i, i)
 			}
@@ -195,16 +122,16 @@ func benchmarkCache(
 	loadFn func(k string) (int, bool),
 	storeFn func(k string, v int),
 	deleteFn func(k string),
-	readPercentage int) {
-
+	readPercentage int,
+) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		// convert percent to permille to support 99% case
 		storeThreshold := 10 * readPercentage
 		deleteThreshold := 10*readPercentage + ((1000 - 10*readPercentage) / 2)
 		for pb.Next() {
-			op := int(FastRand() % 1000)
-			i := int(FastRand() % benchmarkNumEntries)
+			op := int(runtimeFastrand() % 1000)
+			i := int(runtimeFastrand() % benchmarkNumEntries)
 			if op >= deleteThreshold {
 				deleteFn(benchmarkKeys[i])
 			} else if op >= storeThreshold {
@@ -221,16 +148,16 @@ func benchmarkIntegerCache(
 	loadFn func(k int) (int, bool),
 	storeFn func(k int, v int),
 	deleteFn func(k int),
-	readPercentage int) {
-
+	readPercentage int,
+) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		// convert percent to permille to support 99% case
 		storeThreshold := 10 * readPercentage
 		deleteThreshold := 10*readPercentage + ((1000 - 10*readPercentage) / 2)
 		for pb.Next() {
-			op := int(FastRand() % 1000)
-			i := int(FastRand() % benchmarkNumEntries)
+			op := int(runtimeFastrand() % 1000)
+			i := int(runtimeFastrand() % benchmarkNumEntries)
 			if op >= deleteThreshold {
 				deleteFn(benchmarkIntegerKeys[i])
 			} else if op >= storeThreshold {
@@ -243,7 +170,7 @@ func benchmarkIntegerCache(
 }
 
 func BenchmarkCache_Range(b *testing.B) {
-	m := NewOf[int]()
+	m := NewOf[string, int]()
 	for i := 0; i < benchmarkNumEntries; i++ {
 		m.SetForever(benchmarkKeys[i], i)
 	}
@@ -259,3 +186,7 @@ func BenchmarkCache_Range(b *testing.B) {
 		}
 	})
 }
+
+//go:noescape
+//go:linkname runtimeFastrand runtime.fastrand
+func runtimeFastrand() uint32

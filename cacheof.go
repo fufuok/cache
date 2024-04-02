@@ -4,11 +4,7 @@
 package cache
 
 import (
-	"hash/maphash"
 	"time"
-
-	"github.com/fufuok/cache/internal/xsync"
-	"github.com/fufuok/cache/internal/xxhash"
 )
 
 type CacheOf[K comparable, V any] interface {
@@ -120,64 +116,18 @@ type CacheOf[K comparable, V any] interface {
 	SetEvictedCallback(evictedCallback EvictedCallbackOf[K, V])
 }
 
-func NewOf[V any](opts ...OptionOf[string, V]) CacheOf[string, V] {
-	return NewTypedOf[string, V](HashSeedString, opts...)
-}
-
-func NewIntegerOf[K IntegerConstraint, V any](opts ...OptionOf[K, V]) CacheOf[K, V] {
-	return NewTypedOf[K, V](xsync.HashUint64[K], opts...)
-}
-
-func NewHashOf[K comparable, V any](opts ...OptionOf[K, V]) CacheOf[K, V] {
-	hasher := xxhash.GenSeedHasher64[K]()
-	return NewTypedOf[K, V](hasher, opts...)
-}
-
-func NewTypedOf[K comparable, V any](hasher func(maphash.Seed, K) uint64, opts ...OptionOf[K, V]) CacheOf[K, V] {
+func NewOf[K comparable, V any](opts ...OptionOf[K, V]) CacheOf[K, V] {
 	cfg := DefaultConfigOf[K, V]()
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	return newXsyncTypedMapOf[K, V](hasher, cfg)
+	return newXsyncMapOf[K, V](cfg)
 }
 
-func NewOfDefault[V any](
-	defaultExpiration,
-	cleanupInterval time.Duration,
-	evictedCallback ...EvictedCallbackOf[string, V],
-) CacheOf[string, V] {
-	return NewTypedOfDefault[string, V](HashSeedString, defaultExpiration, cleanupInterval, evictedCallback...)
-}
-
-func NewIntegerOfDefault[K IntegerConstraint, V any](
+func NewOfDefault[K comparable, V any](
 	defaultExpiration,
 	cleanupInterval time.Duration,
 	evictedCallback ...EvictedCallbackOf[K, V],
 ) CacheOf[K, V] {
-	return NewTypedOfDefault[K, V](xsync.HashUint64[K], defaultExpiration, cleanupInterval, evictedCallback...)
-}
-
-func NewHashOfDefault[K comparable, V any](
-	defaultExpiration,
-	cleanupInterval time.Duration,
-	evictedCallback ...EvictedCallbackOf[K, V],
-) CacheOf[K, V] {
-	hasher := xxhash.GenSeedHasher64[K]()
-	return NewTypedOfDefault[K, V](hasher, defaultExpiration, cleanupInterval, evictedCallback...)
-}
-
-func NewTypedOfDefault[K comparable, V any](
-	hasher func(maphash.Seed, K) uint64,
-	defaultExpiration,
-	cleanupInterval time.Duration,
-	evictedCallback ...EvictedCallbackOf[K, V],
-) CacheOf[K, V] {
-	opts := []OptionOf[K, V]{
-		WithDefaultExpirationOf[K, V](defaultExpiration),
-		WithCleanupIntervalOf[K, V](cleanupInterval),
-	}
-	if len(evictedCallback) > 0 {
-		opts = append(opts, WithEvictedCallbackOf[K, V](evictedCallback[0]))
-	}
-	return NewTypedOf[K, V](hasher, opts...)
+	return newXsyncMapOfDefault[K, V](defaultExpiration, cleanupInterval, evictedCallback...)
 }

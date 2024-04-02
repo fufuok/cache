@@ -4,7 +4,6 @@
 package cache
 
 import (
-	"hash/maphash"
 	"reflect"
 	"strconv"
 	"sync/atomic"
@@ -12,19 +11,17 @@ import (
 	"time"
 )
 
-var (
-	testKVOf = []kvOf[string, any]{
-		{"string", "s"},
-		{"int", 1},
-		{"int32", int32(32)},
-		{"int64", int64(64)},
-		{"float32", float32(3.14)},
-		{"float64", 3.14},
-		{"nil", nil},
-		{"pointer", &t1},
-		{"struct", t2},
-	}
-)
+var testKVOf = []kvOf[string, any]{
+	{"string", "s"},
+	{"int", 1},
+	{"int32", int32(32)},
+	{"int64", int64(64)},
+	{"float32", float32(3.14)},
+	{"float64", 3.14},
+	{"nil", nil},
+	{"pointer", &t1},
+	{"struct", t2},
+}
 
 func mockCacheOf(opts ...OptionOf[string, any]) CacheOf[string, any] {
 	if len(opts) == 0 {
@@ -33,7 +30,7 @@ func mockCacheOf(opts ...OptionOf[string, any]) CacheOf[string, any] {
 			WithCleanupIntervalOf[string, any](testCleanupInterval),
 		}
 	}
-	c := NewOf[any](opts...)
+	c := NewOf[string, any](opts...)
 	for _, x := range testKVOf {
 		c.SetDefault(x.k, x.v)
 	}
@@ -48,23 +45,16 @@ func TestCacheOf_Expire(t *testing.T) {
 		WithDefaultExpirationOf[string, int](exp),
 		WithCleanupIntervalOf[string, int](interval),
 	}
-	hasher := func(_ maphash.Seed, k string) uint64 {
-		return StrHash64(k)
-	}
 	caches := []CacheOf[string, int]{
-		NewOf[int](opts...),
-		NewOfDefault[int](exp, interval),
-		NewHashOf[string, int](opts...),
-		NewHashOfDefault[string, int](exp, interval),
-		NewTypedOf[string, int](hasher, opts...),
-		NewTypedOfDefault[string, int](hasher, exp, interval),
+		NewOf[string, int](opts...),
+		NewOfDefault[string, int](exp, interval),
 	}
 	for _, c := range caches {
 		c.Set("a", 1, 0)
 		c.Set("b", 2, DefaultExpiration)
 		c.Set("c", 3, NoExpiration)
 		c.Set("d", 4, 20*time.Millisecond)
-		c.Set("e", 5, 100*time.Millisecond)
+		c.Set("e", 5, 150*time.Millisecond)
 
 		<-time.After(25 * time.Millisecond)
 		_, ok := c.Get("d")
@@ -90,7 +80,7 @@ func TestCacheOf_Expire(t *testing.T) {
 			t.Fatal("key e has not expired but was not found")
 		}
 
-		<-time.After(50 * time.Millisecond)
+		<-time.After(100 * time.Millisecond)
 		_, ok = c.Get("e")
 		if ok {
 			t.Fatal("key e should be automatically deleted")
@@ -117,16 +107,9 @@ func TestCacheOf_Integer_Expire(t *testing.T) {
 		WithDefaultExpirationOf[int, int](exp),
 		WithCleanupIntervalOf[int, int](interval),
 	}
-	hasher := func(_ maphash.Seed, k int) uint64 {
-		return uint64(k)
-	}
 	caches := []CacheOf[int, int]{
-		NewIntegerOf[int, int](opts...),
-		NewIntegerOfDefault[int, int](exp, interval),
-		NewHashOf[int, int](opts...),
-		NewHashOfDefault[int, int](exp, interval),
-		NewTypedOf[int, int](hasher, opts...),
-		NewTypedOfDefault[int, int](hasher, exp, interval),
+		NewOf[int, int](opts...),
+		NewOfDefault[int, int](exp, interval),
 	}
 	for _, c := range caches {
 		c.Set(1, 1, 0)
@@ -191,7 +174,7 @@ func TestCacheOf_SetAndGet(t *testing.T) {
 
 func TestCacheOf_SetDefault_WithoutCleanup(t *testing.T) {
 	defaultExpiration := 50 * time.Millisecond
-	c := NewOfDefault[int](defaultExpiration, 0)
+	c := NewOfDefault[string, int](defaultExpiration, 0)
 	c.SetDefault("x", 1)
 	v, ok := c.Get("x")
 	if !ok || v != 1 {
@@ -219,7 +202,7 @@ func TestCacheOf_SetDefault_WithoutCleanup(t *testing.T) {
 
 func TestCacheOf_SetDefault(t *testing.T) {
 	defaultExpiration := 50 * time.Millisecond
-	c := NewOfDefault[int](defaultExpiration, testCleanupInterval)
+	c := NewOfDefault[string, int](defaultExpiration, testCleanupInterval)
 	c.SetDefault("x", 1)
 	v, ok := c.Get("x")
 	if !ok || v != 1 {
@@ -247,7 +230,7 @@ func TestCacheOf_SetDefault(t *testing.T) {
 
 func TestCacheOf_SetForever(t *testing.T) {
 	defaultExpiration := 50 * time.Millisecond
-	c := NewOfDefault[int](defaultExpiration, testCleanupInterval)
+	c := NewOfDefault[string, int](defaultExpiration, testCleanupInterval)
 	c.SetForever("x", 1)
 	v, ok := c.Get("x")
 	if !ok || v != 1 {
@@ -262,7 +245,7 @@ func TestCacheOf_SetForever(t *testing.T) {
 }
 
 func TestCacheOf_GetOrSet(t *testing.T) {
-	c := NewOf[int]()
+	c := NewOf[string, int]()
 	v, ok := c.GetOrSet("x", 1, testDefaultExpiration)
 	if ok {
 		t.Fatal("key x should not loaded")
@@ -283,7 +266,7 @@ func TestCacheOf_GetOrSet(t *testing.T) {
 }
 
 func TestCacheOf_GetAndSet(t *testing.T) {
-	c := NewOf[int]()
+	c := NewOf[string, int]()
 	v, ok := c.GetAndSet("x", 1, testDefaultExpiration)
 	if ok {
 		t.Fatal("key x should not loaded")
@@ -304,7 +287,7 @@ func TestCacheOf_GetAndSet(t *testing.T) {
 }
 
 func TestCacheOf_GetAndRefresh(t *testing.T) {
-	c := NewOfDefault[int](100*time.Millisecond, testCleanupInterval)
+	c := NewOfDefault[string, int](100*time.Millisecond, testCleanupInterval)
 	c.SetDefault("x", 1)
 	v, tm, ok := c.GetWithExpiration("x")
 	if !ok || v != 1 || tm.Before(time.Now()) {
@@ -330,7 +313,7 @@ func TestCacheOf_GetAndRefresh(t *testing.T) {
 
 func TestCacheOf_GetOrCompute(t *testing.T) {
 	const numEntries = 1000
-	c := NewOf[int](WithMinCapacityOf[string, int](numEntries))
+	c := NewOf[string, int](WithMinCapacityOf[string, int](numEntries))
 	for i := 0; i < numEntries; i++ {
 		v, loaded := c.GetOrCompute(strconv.Itoa(i), func() int {
 			return i
@@ -356,7 +339,7 @@ func TestCacheOf_GetOrCompute(t *testing.T) {
 }
 
 func TestCacheOf_GetOrCompute_WithKeyExpired(t *testing.T) {
-	c := NewOf[int]()
+	c := NewOf[string, int]()
 	v, loaded := c.GetOrCompute("1", func() int {
 		return 1
 	}, 0)
@@ -399,7 +382,7 @@ func TestCacheOf_GetOrCompute_WithKeyExpired(t *testing.T) {
 }
 
 func TestCacheOf_GetOrCompute_FunctionCalledOnce(t *testing.T) {
-	c := NewIntegerOf[int, int]()
+	c := NewOf[int, int]()
 	for i := 0; i < 100; {
 		c.GetOrCompute(i, func() (v int) {
 			v, i = i, i+1
@@ -415,7 +398,7 @@ func TestCacheOf_GetOrCompute_FunctionCalledOnce(t *testing.T) {
 }
 
 func TestCacheOf_Compute(t *testing.T) {
-	c := NewOf[int]()
+	c := NewOf[string, int]()
 	// Store a new value.
 	v, ok := c.Compute("foobar", func(oldValue int, loaded bool) (newValue int, delete bool) {
 		if oldValue != 0 {
@@ -529,7 +512,7 @@ func TestCacheOf_Compute(t *testing.T) {
 }
 
 func TestCacheOf_GetAndDelete(t *testing.T) {
-	c := NewOf[int]()
+	c := NewOf[string, int]()
 	v, ok := c.GetAndDelete("x")
 	if ok || v != 0 {
 		t.Fatal("key a should not exist")
@@ -549,7 +532,7 @@ func TestCacheOf_GetAndDelete(t *testing.T) {
 }
 
 func TestCacheOf_Delete(t *testing.T) {
-	c := NewOf[int]()
+	c := NewOf[string, int]()
 	c.Delete("x")
 
 	c.SetForever("x", 1)
@@ -571,7 +554,7 @@ func TestCacheOf_DeleteExpired(t *testing.T) {
 	testEvictedCallback := func(k string, v int64) {
 		atomic.AddInt64(&n, v)
 	}
-	c := NewOfDefault[int64](10*time.Millisecond, 5*time.Millisecond, testEvictedCallback)
+	c := NewOfDefault[string, int64](10*time.Millisecond, 5*time.Millisecond, testEvictedCallback)
 	for i := 0; i < 10; i++ {
 		c.SetDefault(strconv.Itoa(i), int64(i))
 	}
@@ -599,7 +582,7 @@ func countBasedOnTypedRange(c CacheOf[string, int]) int {
 
 func TestCacheOf_Size(t *testing.T) {
 	const numEntries = 1000
-	c := NewOf[int]()
+	c := NewOf[string, int]()
 	size := c.Count()
 	if size != 0 {
 		t.Fatalf("zero size expected: %d", size)
@@ -633,7 +616,7 @@ func TestCacheOf_Size(t *testing.T) {
 
 func TestCacheOf_Clear(t *testing.T) {
 	const numEntries = 1000
-	c := NewOf[int]()
+	c := NewOf[string, int]()
 	for i := 0; i < numEntries; i++ {
 		c.SetDefault(strconv.Itoa(i), i)
 	}
@@ -658,7 +641,7 @@ func TestCacheOf_Range(t *testing.T) {
 		atomic.AddInt64(&n, v)
 		return true
 	}
-	c := NewOf[int64]()
+	c := NewOf[string, int64]()
 	for i := 0; i < 10; i++ {
 		c.SetDefault(strconv.Itoa(i), int64(i))
 	}

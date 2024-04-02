@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	m := cache.NewMapOf[int]()
+	m := cache.NewMapOf[string, int]()
 
 	m.Store("A", 1)
 

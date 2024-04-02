@@ -15,7 +15,7 @@ func OnEvicted(k string, v int) {
 }
 
 func main() {
-	c := cache.NewOf[int](
+	c := cache.NewOf[string, int](
 		cache.WithDefaultExpirationOf[string, int](1*time.Second),
 		cache.WithCleanupIntervalOf[string, int](500*time.Millisecond),
 		cache.WithEvictedCallbackOf[string, int](OnEvicted),

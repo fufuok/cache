@@ -4,14 +4,12 @@
 package cache
 
 import (
-	"encoding/binary"
-	"hash/maphash"
 	"strconv"
 	"testing"
 )
 
 func TestMapOf_UniqueValuePointers_Int(t *testing.T) {
-	m := NewMapOf[int]()
+	m := NewMapOf[string, int]()
 	v := 42
 	m.Store("foo", v)
 	m.Store("foo", v)
@@ -19,7 +17,7 @@ func TestMapOf_UniqueValuePointers_Int(t *testing.T) {
 
 func TestMapOf_UniqueValuePointers_Struct(t *testing.T) {
 	type foo struct{}
-	m := NewMapOf[foo]()
+	m := NewMapOf[string, foo]()
 	v := foo{}
 	m.Store("foo", v)
 	m.Store("foo", v)
@@ -27,34 +25,34 @@ func TestMapOf_UniqueValuePointers_Struct(t *testing.T) {
 
 func TestMapOf_UniqueValuePointers_Pointer(t *testing.T) {
 	type foo struct{}
-	m := NewMapOf[*foo]()
+	m := NewMapOf[string, *foo]()
 	v := &foo{}
 	m.Store("foo", v)
 	m.Store("foo", v)
 }
 
 func TestMapOf_UniqueValuePointers_Slice(t *testing.T) {
-	m := NewMapOf[[]int]()
+	m := NewMapOf[string, []int]()
 	v := make([]int, 13)
 	m.Store("foo", v)
 	m.Store("foo", v)
 }
 
 func TestMapOf_UniqueValuePointers_String(t *testing.T) {
-	m := NewMapOf[string]()
+	m := NewMapOf[string, string]()
 	v := "bar"
 	m.Store("foo", v)
 	m.Store("foo", v)
 }
 
 func TestMapOf_UniqueValuePointers_Nil(t *testing.T) {
-	m := NewMapOf[*struct{}]()
+	m := NewMapOf[string, *struct{}]()
 	m.Store("foo", nil)
 	m.Store("foo", nil)
 }
 
 func TestMapOf_MissingEntry(t *testing.T) {
-	m := NewMapOf[string]()
+	m := NewMapOf[string, string]()
 	v, ok := m.Load("foo")
 	if ok {
 		t.Fatalf("value was not expected: %v", v)
@@ -68,7 +66,7 @@ func TestMapOf_MissingEntry(t *testing.T) {
 }
 
 func TestMapOf_EmptyStringKey(t *testing.T) {
-	m := NewMapOf[string]()
+	m := NewMapOf[string, string]()
 	m.Store("", "foobar")
 	v, ok := m.Load("")
 	if !ok {
@@ -80,7 +78,7 @@ func TestMapOf_EmptyStringKey(t *testing.T) {
 }
 
 func TestMapOfStore_NilValue(t *testing.T) {
-	m := NewMapOf[*struct{}]()
+	m := NewMapOf[string, *struct{}]()
 	m.Store("foo", nil)
 	v, ok := m.Load("foo")
 	if !ok {
@@ -92,7 +90,7 @@ func TestMapOfStore_NilValue(t *testing.T) {
 }
 
 func TestMapOfLoadOrStore_NilValue(t *testing.T) {
-	m := NewMapOf[*struct{}]()
+	m := NewMapOf[string, *struct{}]()
 	m.LoadOrStore("foo", nil)
 	v, loaded := m.LoadOrStore("foo", nil)
 	if !loaded {
@@ -105,7 +103,7 @@ func TestMapOfLoadOrStore_NilValue(t *testing.T) {
 
 func TestMapOfLoadOrStore_NonNilValue(t *testing.T) {
 	type foo struct{}
-	m := NewMapOf[*foo]()
+	m := NewMapOf[string, *foo]()
 	newv := &foo{}
 	v, loaded := m.LoadOrStore("foo", newv)
 	if loaded {
@@ -125,7 +123,7 @@ func TestMapOfLoadOrStore_NonNilValue(t *testing.T) {
 }
 
 func TestMapOfLoadAndStore_NilValue(t *testing.T) {
-	m := NewMapOf[*struct{}]()
+	m := NewMapOf[string, *struct{}]()
 	m.LoadAndStore("foo", nil)
 	v, loaded := m.LoadAndStore("foo", nil)
 	if !loaded {
@@ -144,7 +142,7 @@ func TestMapOfLoadAndStore_NilValue(t *testing.T) {
 }
 
 func TestMapOfLoadAndStore_NonNilValue(t *testing.T) {
-	m := NewMapOf[int]()
+	m := NewMapOf[string, int]()
 	v1 := 1
 	v, loaded := m.LoadAndStore("foo", v1)
 	if loaded {
@@ -172,7 +170,7 @@ func TestMapOfLoadAndStore_NonNilValue(t *testing.T) {
 
 func TestMapOfRange(t *testing.T) {
 	const numEntries = 1000
-	m := NewMapOf[int]()
+	m := NewMapOf[string, int]()
 	for i := 0; i < numEntries; i++ {
 		m.Store(strconv.Itoa(i), i)
 	}
@@ -198,7 +196,7 @@ func TestMapOfRange(t *testing.T) {
 }
 
 func TestMapOfRange_FalseReturned(t *testing.T) {
-	m := NewMapOf[int]()
+	m := NewMapOf[string, int]()
 	for i := 0; i < 100; i++ {
 		m.Store(strconv.Itoa(i), i)
 	}
@@ -214,7 +212,7 @@ func TestMapOfRange_FalseReturned(t *testing.T) {
 
 func TestMapOfRange_NestedDelete(t *testing.T) {
 	const numEntries = 256
-	m := NewMapOf[int]()
+	m := NewMapOf[string, int]()
 	for i := 0; i < numEntries; i++ {
 		m.Store(strconv.Itoa(i), i)
 	}
@@ -231,7 +229,7 @@ func TestMapOfRange_NestedDelete(t *testing.T) {
 
 func TestMapOfStore(t *testing.T) {
 	const numEntries = 128
-	m := NewMapOf[int]()
+	m := NewMapOf[string, int]()
 	for i := 0; i < numEntries; i++ {
 		m.Store(strconv.Itoa(i), i)
 	}
@@ -248,7 +246,7 @@ func TestMapOfStore(t *testing.T) {
 
 func TestIntegerMapOfStore(t *testing.T) {
 	const numEntries = 128
-	m := NewIntegerMapOf[int, int]()
+	m := NewMapOf[int, int]()
 	for i := 0; i < numEntries; i++ {
 		m.Store(i, i)
 	}
@@ -269,15 +267,7 @@ func TestTypedMapOfStore_StructKeys_IntValues(t *testing.T) {
 		y int32
 	}
 	const numEntries = 128
-	m := NewTypedMapOf[foo, int](func(seed maphash.Seed, f foo) uint64 {
-		var h maphash.Hash
-		h.SetSeed(seed)
-		binary.Write(&h, binary.LittleEndian, f.x)
-		hash := h.Sum64()
-		h.Reset()
-		binary.Write(&h, binary.LittleEndian, f.y)
-		return 31*hash + h.Sum64()
-	})
+	m := NewMapOf[foo, int]()
 	for i := 0; i < numEntries; i++ {
 		m.Store(foo{int32(i), -int32(i)}, i)
 	}
@@ -298,15 +288,7 @@ func TestTypedMapOfStore_StructKeys_StructValues(t *testing.T) {
 		y int32
 	}
 	const numEntries = 128
-	m := NewTypedMapOf[foo, foo](func(seed maphash.Seed, f foo) uint64 {
-		var h maphash.Hash
-		h.SetSeed(seed)
-		binary.Write(&h, binary.LittleEndian, f.x)
-		hash := h.Sum64()
-		h.Reset()
-		binary.Write(&h, binary.LittleEndian, f.y)
-		return 31*hash + h.Sum64()
-	})
+	m := NewMapOf[foo, foo]()
 	for i := 0; i < numEntries; i++ {
 		m.Store(foo{int32(i), -int32(i)}, foo{-int32(i), int32(i)})
 	}
@@ -326,11 +308,7 @@ func TestTypedMapOfStore_StructKeys_StructValues(t *testing.T) {
 
 func TestTypedMapOfStore_HashCodeCollisions(t *testing.T) {
 	const numEntries = 1000
-	m := NewTypedMapOf[int, int](func(_ maphash.Seed, i int) uint64 {
-		// We intentionally use an awful hash function here to make sure
-		// that the map copes with key collisions.
-		return 42
-	})
+	m := NewMapOf[int, int]()
 	for i := 0; i < numEntries; i++ {
 		m.Store(i, i)
 	}
@@ -347,7 +325,7 @@ func TestTypedMapOfStore_HashCodeCollisions(t *testing.T) {
 
 func TestMapOfLoadOrStore(t *testing.T) {
 	const numEntries = 1000
-	m := NewMapOf[int]()
+	m := NewMapOf[string, int]()
 	for i := 0; i < numEntries; i++ {
 		m.Store(strconv.Itoa(i), i)
 	}
@@ -360,7 +338,7 @@ func TestMapOfLoadOrStore(t *testing.T) {
 
 func TestMapOfLoadOrCompute(t *testing.T) {
 	const numEntries = 1000
-	m := NewMapOf[int]()
+	m := NewMapOf[string, int]()
 	for i := 0; i < numEntries; i++ {
 		v, loaded := m.LoadOrCompute(strconv.Itoa(i), func() int {
 			return i
@@ -386,7 +364,7 @@ func TestMapOfLoadOrCompute(t *testing.T) {
 }
 
 func TestMapOfLoadOrCompute_FunctionCalledOnce(t *testing.T) {
-	m := NewIntegerMapOf[int, int]()
+	m := NewMapOf[int, int]()
 	for i := 0; i < 100; {
 		m.LoadOrCompute(i, func() (v int) {
 			v, i = i, i+1
@@ -403,7 +381,7 @@ func TestMapOfLoadOrCompute_FunctionCalledOnce(t *testing.T) {
 }
 
 func TestMapOfCompute(t *testing.T) {
-	m := NewMapOf[int]()
+	m := NewMapOf[string, int]()
 	// Store a new value.
 	v, ok := m.Compute("foobar", func(oldValue int, loaded bool) (newValue int, delete bool) {
 		if oldValue != 0 {
@@ -480,7 +458,7 @@ func TestMapOfCompute(t *testing.T) {
 
 func TestMapOfStoreThenDelete(t *testing.T) {
 	const numEntries = 1000
-	m := NewMapOfPresized[int](numEntries)
+	m := NewMapOfPresized[string, int](numEntries)
 	for i := 0; i < numEntries; i++ {
 		m.Store(strconv.Itoa(i), i)
 	}
@@ -494,7 +472,7 @@ func TestMapOfStoreThenDelete(t *testing.T) {
 
 func TestIntegerMapOfStoreThenDelete(t *testing.T) {
 	const numEntries = 1000
-	m := NewIntegerMapOfPresized[int32, int32](numEntries)
+	m := NewMapOfPresized[int32, int32](numEntries)
 	for i := 0; i < numEntries; i++ {
 		m.Store(int32(i), int32(i))
 	}
@@ -512,15 +490,7 @@ func TestTypedMapOfStoreThenDelete(t *testing.T) {
 		y int32
 	}
 	const numEntries = 1000
-	m := NewTypedMapOfPresized[foo, string](func(seed maphash.Seed, f foo) uint64 {
-		var h maphash.Hash
-		h.SetSeed(seed)
-		binary.Write(&h, binary.LittleEndian, f.x)
-		hash := h.Sum64()
-		h.Reset()
-		binary.Write(&h, binary.LittleEndian, f.y)
-		return 31*hash + h.Sum64()
-	}, numEntries)
+	m := NewMapOfPresized[foo, string](numEntries)
 	for i := 0; i < numEntries; i++ {
 		m.Store(foo{int32(i), 42}, strconv.Itoa(i))
 	}
@@ -534,7 +504,7 @@ func TestTypedMapOfStoreThenDelete(t *testing.T) {
 
 func TestMapOfStoreThenLoadAndDelete(t *testing.T) {
 	const numEntries = 1000
-	m := NewMapOf[int]()
+	m := NewMapOf[string, int]()
 	for i := 0; i < numEntries; i++ {
 		m.Store(strconv.Itoa(i), i)
 	}
@@ -550,7 +520,7 @@ func TestMapOfStoreThenLoadAndDelete(t *testing.T) {
 
 func TestIntegerMapOfStoreThenLoadAndDelete(t *testing.T) {
 	const numEntries = 1000
-	m := NewIntegerMapOf[int, int]()
+	m := NewMapOf[int, int]()
 	for i := 0; i < numEntries; i++ {
 		m.Store(i, i)
 	}
@@ -570,15 +540,7 @@ func TestTypedMapOfStoreThenLoadAndDelete(t *testing.T) {
 		y int32
 	}
 	const numEntries = 1000
-	m := NewTypedMapOf[foo, int](func(seed maphash.Seed, f foo) uint64 {
-		var h maphash.Hash
-		h.SetSeed(seed)
-		binary.Write(&h, binary.LittleEndian, f.x)
-		hash := h.Sum64()
-		h.Reset()
-		binary.Write(&h, binary.LittleEndian, f.y)
-		return 31*hash + h.Sum64()
-	})
+	m := NewMapOf[foo, int]()
 	for i := 0; i < numEntries; i++ {
 		m.Store(foo{42, int32(i)}, i)
 	}
@@ -603,7 +565,7 @@ func sizeBasedOnTypedRange(m MapOf[string, int]) int {
 
 func TestMapOfSize(t *testing.T) {
 	const numEntries = 1000
-	m := NewMapOf[int]()
+	m := NewMapOf[string, int]()
 	size := m.Size()
 	if size != 0 {
 		t.Fatalf("zero size expected: %d", size)
@@ -637,7 +599,7 @@ func TestMapOfSize(t *testing.T) {
 
 func TestMapOfClear(t *testing.T) {
 	const numEntries = 1000
-	m := NewMapOf[int]()
+	m := NewMapOf[string, int]()
 	for i := 0; i < numEntries; i++ {
 		m.Store(strconv.Itoa(i), i)
 	}
@@ -656,17 +618,13 @@ func TestMapOfClear(t *testing.T) {
 	}
 }
 
-func TestHashMapOf_StructKey_CustomHasher(t *testing.T) {
+func TestMapOf_StructKey_CustomHasher(t *testing.T) {
 	const num = 200
 	type location struct {
 		lon float32
 		lat float32
 	}
-	hasher := func(_ maphash.Seed, l location) uint64 {
-		return uint64(6*l.lon + 7*l.lat)
-	}
-	m := NewHashMapOf[location, int](hasher)
-
+	m := NewMapOf[location, int]()
 	for i := 0; i < num; i++ {
 		m.Store(location{float32(i), float32(-i)}, i)
 	}
@@ -681,15 +639,15 @@ func TestHashMapOf_StructKey_CustomHasher(t *testing.T) {
 	}
 }
 
-func TestHashMapOf_StructKey_GenHasher(t *testing.T) {
+func TestMapOf_StructKey_GenHasher(t *testing.T) {
 	const num = 200
 	type location struct {
 		lon float32
 		lat float32
 	}
 	// Warning: panic: unsupported key type xsync_test.location of kind struct
-	// m := NewHashMapOf[location, int]()
-	m := NewHashMapOf[*location, int]()
+	// m := NewMapOf[location, int]()
+	m := NewMapOf[*location, int]()
 	keys := make([]*location, 0, num)
 
 	for i := 0; i < num; i++ {
