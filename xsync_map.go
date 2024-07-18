@@ -4,8 +4,6 @@ import (
 	"runtime"
 	"sync/atomic"
 	"time"
-
-	"github.com/fufuok/cache/internal/xsync"
 )
 
 var _ Cache = (*xsyncMapWrapper)(nil)
@@ -17,7 +15,7 @@ type xsyncMapWrapper struct {
 type xsyncMap struct {
 	defaultExpiration atomic.Value
 	evictedCallback   atomic.Value
-	items             *xsync.Map
+	items             Map
 	stop              chan struct{}
 }
 
@@ -25,7 +23,7 @@ type xsyncMap struct {
 func newXsyncMap(config ...Config) Cache {
 	cfg := configDefault(config...)
 	c := &xsyncMap{
-		items: xsync.NewMapPresized(cfg.MinCapacity),
+		items: NewMapPresized(cfg.MinCapacity),
 		stop:  make(chan struct{}),
 	}
 	c.defaultExpiration.Store(cfg.DefaultExpiration)

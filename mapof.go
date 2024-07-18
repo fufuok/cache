@@ -85,5 +85,5 @@ func NewMapOf[K comparable, V any]() MapOf[K, V] {
 // enough to hold sizeHint entries. If sizeHint is zero or negative, the value
 // is ignored.
 func NewMapOfPresized[K comparable, V any](sizeHint int) MapOf[K, V] {
-	return xsync.NewMapOfPresized[K, V](sizeHint)
+	return xsync.NewMapOf[K, V](xsync.WithPresize(sizeHint))
 }

@@ -7,8 +7,6 @@ import (
 	"runtime"
 	"sync/atomic"
 	"time"
-
-	"github.com/fufuok/cache/internal/xsync"
 )
 
 var (
@@ -23,7 +21,7 @@ type xsyncMapOfWrapper[K comparable, V any] struct {
 type xsyncMapOf[K comparable, V any] struct {
 	defaultExpiration atomic.Value
 	evictedCallback   atomic.Value
-	items             *xsync.MapOf[K, itemOf[V]]
+	items             MapOf[K, itemOf[V]]
 	stop              chan struct{}
 }
 
@@ -33,7 +31,7 @@ func newXsyncMapOf[K comparable, V any](
 ) CacheOf[K, V] {
 	cfg := configDefaultOf(config...)
 	c := &xsyncMapOf[K, V]{
-		items: xsync.NewMapOfPresized[K, itemOf[V]](cfg.MinCapacity),
+		items: NewMapOfPresized[K, itemOf[V]](cfg.MinCapacity),
 		stop:  make(chan struct{}),
 	}
 	c.defaultExpiration.Store(cfg.DefaultExpiration)
