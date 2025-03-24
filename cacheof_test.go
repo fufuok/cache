@@ -275,7 +275,7 @@ func TestCacheOf_GetAndSet(t *testing.T) {
 		t.Fatalf("key x, expected %d, got %d", 1, v)
 	}
 
-	v, ok = c.GetAndSet("x", 2, testDefaultExpiration)
+	v, ok = c.GetAndSet("x", 2, 50*time.Millisecond)
 	if !ok || v != 1 {
 		t.Fatalf("key x, expected %d, got %d", 1, v)
 	}
@@ -283,6 +283,20 @@ func TestCacheOf_GetAndSet(t *testing.T) {
 	y, ok := c.Get("x")
 	if !ok || y != 2 {
 		t.Fatalf("key x, expected %d, got %d", 2, y)
+	}
+
+	// Always reset expiration time
+	c.GetAndSet("x", 2, 200*time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	z, ok := c.Get("x")
+	if !ok || z != 2 {
+		t.Fatalf("key x, expected %d, got %d", 3, z)
+	}
+
+	time.Sleep(110 * time.Millisecond)
+	_, ok = c.Get("x")
+	if ok {
+		t.Fatal("key x should not loaded")
 	}
 }
 
