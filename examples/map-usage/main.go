@@ -3,11 +3,11 @@ package main
 import (
 	"fmt"
 
-	"github.com/fufuok/cache"
+	"github.com/fufuok/cache/xsync"
 )
 
 func main() {
-	m := cache.NewMap()
+	m := xsync.NewMap[string, int]()
 
 	m.Store("A", 1)
 
@@ -31,7 +31,7 @@ func main() {
 	m.Store("C", 5)
 	m.LoadOrStore("D", 6)
 
-	m.Range(func(key string, value interface{}) bool {
+	m.Range(func(key string, value int) bool {
 		fmt.Printf("Key -> %s | Value -> %d\n", key, value)
 		return true
 	})
@@ -39,7 +39,7 @@ func main() {
 	m.Delete("A")
 	m.Delete("C")
 	m.Delete("D")
-	// delete is safe even if a key doesn't exist
+	// delete is safe even if a key doesn't exists
 	m.Delete("B")
 	m.Delete("E")
 

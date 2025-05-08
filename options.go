@@ -4,28 +4,28 @@ import (
 	"time"
 )
 
-type Option func(config *Config)
+type Option[K comparable, V any] func(config *Config[K, V])
 
-func WithDefaultExpiration(duration time.Duration) Option {
-	return func(config *Config) {
+func WithDefaultExpiration[K comparable, V any](duration time.Duration) Option[K, V] {
+	return func(config *Config[K, V]) {
 		config.DefaultExpiration = duration
 	}
 }
 
-func WithCleanupInterval(interval time.Duration) Option {
-	return func(config *Config) {
+func WithCleanupInterval[K comparable, V any](interval time.Duration) Option[K, V] {
+	return func(config *Config[K, V]) {
 		config.CleanupInterval = interval
 	}
 }
 
-func WithEvictedCallback(ec EvictedCallback) Option {
-	return func(config *Config) {
+func WithEvictedCallback[K comparable, V any](ec EvictedCallback[K, V]) Option[K, V] {
+	return func(config *Config[K, V]) {
 		config.EvictedCallback = ec
 	}
 }
 
-func WithMinCapacity(sizeHint int) Option {
-	return func(config *Config) {
+func WithMinCapacity[K comparable, V any](sizeHint int) Option[K, V] {
+	return func(config *Config[K, V]) {
 		config.MinCapacity = sizeHint
 	}
 }

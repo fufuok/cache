@@ -4,63 +4,79 @@ import (
 	"runtime"
 	"sync/atomic"
 	"time"
+
+	"github.com/fufuok/cache/xsync"
 )
 
-var _ Cache = (*xsyncMapWrapper)(nil)
+var (
+	_ Cache[string, any] = (*xsyncMapWrapper[string, any])(nil)
+	_ Cache[int, any]    = (*xsyncMapWrapper[int, any])(nil)
+)
 
-type xsyncMapWrapper struct {
-	*xsyncMap
+type xsyncMapWrapper[K comparable, V any] struct {
+	*xsyncMap[K, V]
 }
 
-type xsyncMap struct {
+type xsyncMap[K comparable, V any] struct {
 	defaultExpiration atomic.Value
 	evictedCallback   atomic.Value
-	items             Map
+	items             Map[K, item[V]]
 	stop              chan struct{}
+	closed            atomic.Bool
 }
 
-// Create a new cache, optionally specifying configuration items.
-func newXsyncMap(config ...Config) Cache {
+// Creates a new Map instance with capacity enough to hold sizeHint entries.
+func newXsyncMap[K comparable, V any](
+	config ...Config[K, V],
+) Cache[K, V] {
 	cfg := configDefault(config...)
-	c := &xsyncMap{
-		items: NewMapPresized(cfg.MinCapacity),
+	c := &xsyncMap[K, V]{
+		items: xsync.NewMap[K, item[V]](xsync.WithPresize(cfg.MinCapacity)),
 		stop:  make(chan struct{}),
 	}
 	c.defaultExpiration.Store(cfg.DefaultExpiration)
 	c.evictedCallback.Store(cfg.EvictedCallback)
 
 	if cfg.CleanupInterval > 0 {
-		go func() {
-			ticker := time.NewTicker(cfg.CleanupInterval)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-					c.DeleteExpired()
-				case <-c.stop:
-					return
-				}
-			}
-		}()
+		go c.startCleanupLoop(cfg.CleanupInterval)
 	}
 
-	cache := &xsyncMapWrapper{c}
-	runtime.SetFinalizer(cache, func(m *xsyncMapWrapper) { close(m.stop) })
+	cache := &xsyncMapWrapper[K, V]{c}
+	runtime.SetFinalizer(cache, func(m *xsyncMapWrapper[K, V]) { m.close() })
 	return cache
 }
 
-// Creates a new cache with the given default expiration duration and cleanup interval.
+// Create a new cache with arbitrarily typed keys,
+// specifying the default expiration duration and cleanup interval.
 // If the cleanup interval is less than 1, the cleanup needs to be performed manually,
 // calling c.DeleteExpired()
-func newXsyncMapDefault(defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallback) Cache {
-	cfg := Config{
+func newXsyncMapDefault[K comparable, V any](
+	defaultExpiration,
+	cleanupInterval time.Duration,
+	evictedCallback ...EvictedCallback[K, V],
+) Cache[K, V] {
+	cfg := Config[K, V]{
 		DefaultExpiration: defaultExpiration,
 		CleanupInterval:   cleanupInterval,
 	}
 	if len(evictedCallback) > 0 {
 		cfg.EvictedCallback = evictedCallback[0]
 	}
-	return newXsyncMap(cfg)
+	return newXsyncMap[K, V](cfg)
+}
+
+func (c *xsyncMap[K, V]) startCleanupLoop(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			c.DeleteExpired()
+		case <-c.stop:
+			return
+		}
+	}
 }
 
 // Set add item to the cache, replacing any existing items.
@@ -68,14 +84,14 @@ func newXsyncMapDefault(defaultExpiration, cleanupInterval time.Duration, evicte
 // (NoExpiration), the item never expires.
 // All values less than or equal to 0 are the same except DefaultExpiration,
 // which means never expires.
-func (c *xsyncMap) Set(k string, v interface{}, d time.Duration) {
-	c.items.Store(k, item{
+func (c *xsyncMap[K, V]) Set(k K, v V, d time.Duration) {
+	c.items.Store(k, item[V]{
 		v: v,
 		e: c.expiration(d),
 	})
 }
 
-func (c *xsyncMap) expiration(d time.Duration) (e int64) {
+func (c *xsyncMap[K, V]) expiration(d time.Duration) (e int64) {
 	if d == DefaultExpiration {
 		d = c.DefaultExpiration()
 	}
@@ -87,67 +103,65 @@ func (c *xsyncMap) expiration(d time.Duration) (e int64) {
 
 // SetDefault add item to the cache with the default expiration time,
 // replacing any existing items.
-func (c *xsyncMap) SetDefault(k string, v interface{}) {
+func (c *xsyncMap[K, V]) SetDefault(k K, v V) {
 	c.Set(k, v, DefaultExpiration)
 }
 
 // SetForever add item to cache and set to never expire, replacing any existing items.
-func (c *xsyncMap) SetForever(k string, v interface{}) {
+func (c *xsyncMap[K, V]) SetForever(k K, v V) {
 	c.Set(k, v, NoExpiration)
 }
 
 // Get an item from the cache.
 // Returns the item or nil,
 // and a boolean indicating whether the key was found.
-func (c *xsyncMap) Get(k string) (interface{}, bool) {
-	if v, ok := c.get(k); ok {
-		return v.(item).v, true
+func (c *xsyncMap[K, V]) Get(k K) (V, bool) {
+	i, ok := c.get(k)
+	if ok {
+		return i.v, true
 	}
-	return nil, false
+	return i.v, false
 }
 
-func (c *xsyncMap) get(k string) (interface{}, bool) {
-	v, ok := c.items.Load(k)
+func (c *xsyncMap[K, V]) get(k K) (item[V], bool) {
+	var zeroedV item[V]
+	i, ok := c.items.Load(k)
 	if !ok {
-		return nil, false
+		return zeroedV, false
 	}
 
-	i := v.(item)
 	if !i.expired() {
 		return i, true
 	}
 
 	// double check or delete
-	v, ok = c.items.Compute(
+	i, ok = c.items.Compute(
 		k,
-		func(value interface{}, loaded bool) (interface{}, bool) {
-			if loaded {
-				i = value.(item)
-				if !i.expired() {
-					// k has a new value
-					return i, false
-				}
+		func(value item[V], loaded bool) (item[V], ComputeOp) {
+			if loaded && !value.expired() {
+				// k has a new value
+				return value, CancelOp
 			}
 			// delete
-			return nil, true
+			return zeroedV, DeleteOp
 		},
 	)
 	if ok {
-		return v, true
+		return i, true
 	}
-	return nil, false
+	return zeroedV, false
 }
 
 // GetWithExpiration get an item from the cache.
 // Returns the item or nil,
 // along with the expiration time, and a boolean indicating whether the key was found.
-func (c *xsyncMap) GetWithExpiration(k string) (interface{}, time.Time, bool) {
-	v, ok := c.get(k)
+func (c *xsyncMap[K, V]) GetWithExpiration(k K) (V, time.Time, bool) {
+	i, ok := c.get(k)
 	if !ok {
 		// not found
-		return nil, time.Time{}, false
+		var v V
+		return v, time.Time{}, false
 	}
-	i := v.(item)
 	if i.e > 0 {
 		// with expiration
 		return i.v, time.Unix(0, i.e), true
@@ -159,13 +173,13 @@ func (c *xsyncMap) GetWithExpiration(k string) (interface{}, time.Time, bool) {
 // GetWithTTL get an item from the cache.
 // Returns the item or nil,
 // with the remaining lifetime and a boolean indicating whether the key was found.
-func (c *xsyncMap) GetWithTTL(k string) (interface{}, time.Duration, bool) {
-	v, ok := c.get(k)
+func (c *xsyncMap[K, V]) GetWithTTL(k K) (V, time.Duration, bool) {
+	i, ok := c.get(k)
 	if !ok {
 		// not found
-		return nil, 0, false
+		var zeroedV V
+		return zeroedV, 0, false
 	}
-	i := v.(item)
 	if i.e > 0 {
 		// with ttl
 		return i.v, time.Until(time.Unix(0, i.e)), true
@@ -177,144 +191,162 @@ func (c *xsyncMap) GetWithTTL(k string) (interface{}, time.Duration, bool) {
 // GetOrSet returns the existing value for the key if present.
 // Otherwise, it stores and returns the given value.
 // The loaded result is true if the value was loaded, false if stored.
-func (c *xsyncMap) GetOrSet(k string, v interface{}, d time.Duration) (interface{}, bool) {
+func (c *xsyncMap[K, V]) GetOrSet(k K, v V, d time.Duration) (V, bool) {
 	var ok bool
-	r, _ := c.items.Compute(
+	i, _ := c.items.Compute(
 		k,
-		func(value interface{}, loaded bool) (interface{}, bool) {
-			if loaded {
-				old := value.(item)
-				if !old.expired() {
-					ok = true
-					return old, false
-				}
+		func(value item[V], loaded bool) (item[V], ComputeOp) {
+			if loaded && !value.expired() {
+				ok = true
+				return value, CancelOp
 			}
-			return item{
+			return item[V]{
 				v: v,
 				e: c.expiration(d),
-			}, false
+			}, UpdateOp
 		},
 	)
-	return r.(item).v, ok
+	return i.v, ok
 }
 
 // GetAndSet returns the existing value for the key if present,
 // while setting the new value for the key.
 // Otherwise, it stores and returns the given value.
 // The loaded result is true if the value was loaded, false otherwise.
-func (c *xsyncMap) GetAndSet(k string, v interface{}, d time.Duration) (interface{}, bool) {
+func (c *xsyncMap[K, V]) GetAndSet(k K, v V, d time.Duration) (V, bool) {
 	var (
 		ok  bool
-		old item
+		old item[V]
 	)
-	r, _ := c.items.Compute(
+	i, _ := c.items.Compute(
 		k,
-		func(value interface{}, loaded bool) (interface{}, bool) {
-			if loaded {
-				old = value.(item)
-				if !old.expired() {
-					ok = true
-				}
+		func(value item[V], loaded bool) (item[V], ComputeOp) {
+			if loaded && !value.expired() {
+				ok = true
+				old = value
 			}
-			return item{
+			return item[V]{
 				v: v,
 				e: c.expiration(d),
-			}, false
+			}, UpdateOp
 		},
 	)
 	if ok {
 		return old.v, true
 	}
-	return r.(item).v, false
+	return i.v, false
 }
 
 // GetAndRefresh Get an item from the cache, and refresh the item's expiration time.
 // Returns the item or nil,
 // and a boolean indicating whether the key was found.
-func (c *xsyncMap) GetAndRefresh(k string, d time.Duration) (interface{}, bool) {
-	r, ok := c.items.Compute(
+func (c *xsyncMap[K, V]) GetAndRefresh(k K, d time.Duration) (V, bool) {
+	var zeroedV item[V]
+	i, ok := c.items.Compute(
 		k,
-		func(value interface{}, loaded bool) (interface{}, bool) {
-			if loaded {
-				i := value.(item)
-				if !i.expired() {
-					// store new value
-					i.e = c.expiration(d)
-					return i, false
-				}
+		func(value item[V], loaded bool) (item[V], ComputeOp) {
+			if loaded && !value.expired() {
+				// store new value
+				value.e = c.expiration(d)
+				return value, UpdateOp
 			}
 			// delete
-			return nil, true
+			return zeroedV, DeleteOp
 		},
 	)
 	if ok {
-		return r.(item).v, true
+		return i.v, true
 	}
-	return nil, false
+	return zeroedV.v, false
 }
 
-// GetOrCompute returns the existing value for the key if present.
-// Otherwise, it computes the value using the provided function and
-// returns the computed value. The loaded result is true if the value
-// was loaded, false if stored.
-func (c *xsyncMap) GetOrCompute(k string, valueFn func() interface{}, d time.Duration) (interface{}, bool) {
+// GetOrCompute returns the existing value for the key if
+// present. Otherwise, it tries to compute the value using the
+// provided function and, if successful, stores and returns
+// the computed value. The loaded result is true if the value was
+// loaded, or false if computed. If valueFn returns true as the
+// cancel value, the computation is cancelled and the zero value
+// for type V is returned.
+//
+// This call locks a hash table bucket while the compute function
+// is executed. It means that modifications on other entries in
+// the bucket will be blocked until the valueFn executes. Consider
+// this when the function includes long-running operations.
+func (c *xsyncMap[K, V]) GetOrCompute(k K, valueFn func() (newValue V, cancel bool), d time.Duration) (V, bool) {
 	var ok bool
-	v, _ := c.items.Compute(
+	i, _ := c.items.Compute(
 		k,
-		func(value interface{}, loaded bool) (interface{}, bool) {
-			if loaded {
-				i := value.(item)
-				if !i.expired() {
-					ok = true
-					return value, false
-				}
+		func(value item[V], loaded bool) (item[V], ComputeOp) {
+			if loaded && !value.expired() {
+				ok = true
+				return value, CancelOp
 			}
-			return item{
-				v: valueFn(),
-				e: c.expiration(d),
-			}, false
+			newValue, cancel := valueFn()
+			if !cancel {
+				return item[V]{
+					v: newValue,
+					e: c.expiration(d),
+				}, UpdateOp
+			}
+			return value, CancelOp
 		},
 	)
-	return v.(item).v, ok
+	return i.v, ok
 }
 
-// Compute either sets the computed new value for the key or deletes
-// the value for the key. When the delete result of the valueFn function
-// is set to true, the value will be deleted, if it exists. When delete
-// is set to false, the value is updated to the newValue.
-// The ok result indicates whether value was computed and stored, thus, is
-// present in the map. The actual result contains the new value in cases where
-// the value was computed and stored. See the example for a few use cases.
-func (c *xsyncMap) Compute(
-	k string,
-	valueFn func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool),
+// Compute either sets the computed new value for the key,
+// deletes the value for the key, or does nothing, based on
+// the returned [ComputeOp]. When the op returned by valueFn
+// is [UpdateOp], the value is updated to the new value. If
+// it is [DeleteOp], the entry is removed from the map
+// altogether. And finally, if the op is [CancelOp] then the
+// entry is left as-is. In other words, if it did not already
+// exist, it is not created, and if it did exist, it is not
+// updated. This is useful to synchronously execute some
+// operation on the value without incurring the cost of
+// updating the map every time. The ok result indicates
+// whether the entry is present in the map after the compute
+// operation. The actual result contains the value of the map
+// if a corresponding entry is present, or the zero value
+// otherwise. See the example for a few use cases.
+//
+// This call locks a hash table bucket while the compute function
+// is executed. It means that modifications on other entries in
+// the bucket will be blocked until the valueFn executes. Consider
+// this when the function includes long-running operations.
+func (c *xsyncMap[K, V]) Compute(
+	k K,
+	valueFn func(oldValue V, loaded bool) (newValue V, op ComputeOp),
 	d time.Duration,
-) (interface{}, bool) {
-	var old interface{}
-	v, ok := c.items.Compute(
+) (V, bool) {
+	var old V
+	i, ok := c.items.Compute(
 		k,
-		func(ov interface{}, lok bool) (nv interface{}, del bool) {
-			var v interface{}
-			if lok {
-				i := ov.(item)
-				if !i.expired() {
-					old = i.v
-				} else {
-					lok = false
+		func(ov item[V], lok bool) (nv item[V], op ComputeOp) {
+			var v V
+			if lok && !ov.expired() {
+				// current value
+				old = ov.v
+			} else {
+				lok = false
+			}
+			v, op = valueFn(old, lok)
+			switch op {
+			case DeleteOp:
+				nv = ov
+			case UpdateOp:
+				nv = item[V]{
+					v: v,
+					e: c.expiration(d),
 				}
+			case CancelOp:
+				nv = ov
 			}
-			v, del = valueFn(old, lok)
-			if del {
-				return
-			}
-			return item{
-				v: v,
-				e: c.expiration(d),
-			}, false
+			return
 		},
 	)
 	if ok {
-		return v.(item).v, true
+		return i.v, true
 	}
 	return old, false
 }
@@ -322,12 +354,12 @@ func (c *xsyncMap) Compute(
 // GetAndDelete Get an item from the cache, and delete the key.
 // Returns the item or nil,
 // and a boolean indicating whether the key was found.
-func (c *xsyncMap) GetAndDelete(k string) (interface{}, bool) {
-	v, ok := c.items.LoadAndDelete(k)
+func (c *xsyncMap[K, V]) GetAndDelete(k K) (V, bool) {
+	i, ok := c.items.LoadAndDelete(k)
 	if !ok {
-		return nil, false
+		var v V
+		return v, false
 	}
-	i := v.(item)
 	ec := c.EvictedCallback()
 	if ec != nil {
 		ec(k, i.v)
@@ -337,26 +369,26 @@ func (c *xsyncMap) GetAndDelete(k string) (interface{}, bool) {
 
 // Delete an item from the cache.
 // Does nothing if the key is not in the cache.
-func (c *xsyncMap) Delete(k string) {
+func (c *xsyncMap[K, V]) Delete(k K) {
 	c.GetAndDelete(k)
 }
 
-type kv struct {
-	k string
-	v interface{}
+type kv[K comparable, V any] struct {
+	k K
+	v V
 }
 
 // DeleteExpired delete all expired items from the cache.
-func (c *xsyncMap) DeleteExpired() {
-	var evictedItems []kv
+func (c *xsyncMap[K, V]) DeleteExpired() {
+	var evictedItems []kv[K, V]
 	ec := c.EvictedCallback()
 	now := time.Now().UnixNano()
-	c.items.Range(func(k string, v interface{}) bool {
-		i := v.(item)
+	c.items.Range(func(k K, v item[V]) bool {
+		i := v
 		if i.expiredWithNow(now) {
 			c.items.Delete(k)
 			if ec != nil {
-				evictedItems = append(evictedItems, kv{k, i.v})
+				evictedItems = append(evictedItems, kv[K, V]{k, i.v})
 			}
 		}
 		return true
@@ -368,13 +400,13 @@ func (c *xsyncMap) DeleteExpired() {
 
 // Range calls f sequentially for each key and value present in the map.
 // If f returns false, range stops the iteration.
-func (c *xsyncMap) Range(f func(k string, v interface{}) bool) {
+func (c *xsyncMap[K, V]) Range(f func(k K, v V) bool) {
 	if f == nil {
 		return
 	}
 	now := time.Now().UnixNano()
-	c.items.Range(func(k string, v interface{}) bool {
-		i := v.(item)
+	c.items.Range(func(k K, v item[V]) bool {
+		i := v
 		if i.expiredWithNow(now) {
 			return true
 		}
@@ -384,9 +416,9 @@ func (c *xsyncMap) Range(f func(k string, v interface{}) bool) {
 
 // Items return the items in the cache.
 // This is a snapshot, which may include items that are about to expire.
-func (c *xsyncMap) Items() map[string]interface{} {
-	items := make(map[string]interface{}, c.items.Size())
-	c.Range(func(k string, v interface{}) bool {
+func (c *xsyncMap[K, V]) Items() map[K]V {
+	items := make(map[K]V, c.items.Size())
+	c.Range(func(k K, v V) bool {
 		items[k] = v
 		return true
 	})
@@ -394,36 +426,50 @@ func (c *xsyncMap) Items() map[string]interface{} {
 }
 
 // Clear deletes all keys and values currently stored in the map.
-func (c *xsyncMap) Clear() {
+func (c *xsyncMap[K, V]) Clear() {
 	c.items.Clear()
+}
+
+// Close closes the cache and releases any resources associated with it.
+func (c *xsyncMap[K, V]) Close() {
+	if c.closed.CompareAndSwap(false, true) {
+		close(c.stop)
+	}
+}
+
+// closes the cache and releases any resources associated with it.
+func (c *xsyncMapWrapper[K, V]) close() {
+	if c.closed.CompareAndSwap(false, true) {
+		close(c.stop)
+	}
 }
 
 // Count returns the number of items in the cache.
 // This may include items that have expired but have not been cleaned up.
-func (c *xsyncMap) Count() int {
+func (c *xsyncMap[K, V]) Count() int {
 	return c.items.Size()
 }
 
-// DefaultExpiration returns the default expiration time for the cache.
-func (c *xsyncMap) DefaultExpiration() time.Duration {
+// DefaultExpiration returns the default expiration time of the cache.
+func (c *xsyncMap[K, V]) DefaultExpiration() time.Duration {
 	return c.defaultExpiration.Load().(time.Duration)
 }
 
 // SetDefaultExpiration sets the default expiration time for the cache.
 // Atomic safety.
-func (c *xsyncMap) SetDefaultExpiration(defaultExpiration time.Duration) {
+func (c *xsyncMap[K, V]) SetDefaultExpiration(defaultExpiration time.Duration) {
 	c.defaultExpiration.Store(defaultExpiration)
 }
 
 // EvictedCallback returns the callback function to execute
 // when a key-value pair expires and is evicted.
-func (c *xsyncMap) EvictedCallback() EvictedCallback {
-	return c.evictedCallback.Load().(EvictedCallback)
+func (c *xsyncMap[K, V]) EvictedCallback() EvictedCallback[K, V] {
+	return c.evictedCallback.Load().(EvictedCallback[K, V])
 }
 
 // SetEvictedCallback Set the callback function to be executed
 // when the key-value pair expires and is evicted.
 // Atomic safety.
-func (c *xsyncMap) SetEvictedCallback(evictedCallback EvictedCallback) {
+func (c *xsyncMap[K, V]) SetEvictedCallback(evictedCallback EvictedCallback[K, V]) {
 	c.evictedCallback.Store(evictedCallback)
 }

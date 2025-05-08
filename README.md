@@ -16,26 +16,26 @@ go get -u github.com/fufuok/cache
 
 [DOC.md](DOC.md), Please see: [examples](examples)
 
-**Cache or CacheOf usage**
+**Cache usage**
 
 ```go
-type Cache interface{ ... }
-    func New(opts ...Option) Cache
-    func NewDefault(defaultExpiration, cleanupInterval time.Duration, ...) Cache
-type CacheOf[K comparable, V any] interface{ ... }
-    func NewOf[K comparable, V any](opts ...OptionOf[K, V]) CacheOf[K, V]
-    func NewOfDefault[K comparable, V any](defaultExpiration, cleanupInterval time.Duration, ...) CacheOf[K, V]
+package cache // import "github.com/fufuok/cache"
 
-type Option func(config *Config)
-    func WithCleanupInterval(interval time.Duration) Option
-    func WithDefaultExpiration(duration time.Duration) Option
-    func WithEvictedCallback(ec EvictedCallback) Option
-    func WithMinCapacity(sizeHint int) Option
-type OptionOf[K comparable, V any] func(config *ConfigOf[K, V])
-    func WithCleanupIntervalOf[K comparable, V any](interval time.Duration) OptionOf[K, V]
-    func WithDefaultExpirationOf[K comparable, V any](duration time.Duration) OptionOf[K, V]
-    func WithEvictedCallbackOf[K comparable, V any](ec EvictedCallbackOf[K, V]) OptionOf[K, V]
-    func WithMinCapacityOf[K comparable, V any](sizeHint int) OptionOf[K, V]
+const NoExpiration = -2 * time.Second ...
+type Cache[K comparable, V any] interface{ ... }
+    func New[K comparable, V any](opts ...Option[K, V]) Cache[K, V]
+    func NewDefault[K comparable, V any](defaultExpiration, cleanupInterval time.Duration, ...) Cache[K, V]
+type ComputeOp = xsync.ComputeOp
+    const CancelOp ComputeOp = iota ...
+type Config[K comparable, V any] struct{ ... }
+    func DefaultConfig[K comparable, V any]() Config[K, V]
+type EvictedCallback[K comparable, V any] func(k K, v V)
+type Map[K comparable, V any] interface{ ... }
+type Option[K comparable, V any] func(config *Config[K, V])
+    func WithCleanupInterval[K comparable, V any](interval time.Duration) Option[K, V]
+    func WithDefaultExpiration[K comparable, V any](duration time.Duration) Option[K, V]
+    func WithEvictedCallback[K comparable, V any](ec EvictedCallback[K, V]) Option[K, V]
+    func WithMinCapacity[K comparable, V any](sizeHint int) Option[K, V]
 ```
 
 **Demo**
@@ -51,30 +51,47 @@ import (
 )
 
 func main() {
-	// for generics
-	// c := cache.NewOf[string, int]()
-	c := cache.New()
+	c := cache.New[string, int]()
 	c.SetForever("A", 1)
 	fmt.Println(c.GetOrSet("B", 2, 1*time.Second)) // 2 false
 	time.Sleep(1 * time.Second)
 	fmt.Println(c.Get("A")) // 1, true
-	// for generics
-	// fmt.Println(c.Get("B")) // 0, false
-	fmt.Println(c.Get("B")) // nil, false
+	fmt.Println(c.Get("B")) // 0, false
 	fmt.Println(c.Count())  // 1
 	c.Clear()
 }
 ```
 
-**Map or MapOf usage (similar to sync.Map)**
+**Map usage (similar to sync.Map)** Source: [puzpuzpuz/xsync](https://github.com/puzpuzpuz/xsync)
 
 ```go
-type Map interface{ ... }
-    func NewMap() Map
-    func NewMapPresized(sizeHint int) Map
-type MapOf[K comparable, V any] interface{ ... }
-    func NewMapOf[K comparable, V any]() MapOf[K, V]
-    func NewMapOfPresized[K comparable, V any](sizeHint int) MapOf[K, V]
+package xsync // import "github.com/fufuok/cache/xsync"
+
+func ToPlainMap[K comparable, V any](m *Map[K, V]) map[K]V
+func WithGrowOnly() func(*MapConfig)
+func WithPresize(sizeHint int) func(*MapConfig)
+func WithSerialResize() func(*MapConfig)
+type ComputeOp int
+    const CancelOp ComputeOp = iota ...
+type Counter struct{ ... }
+    func NewCounter() *Counter
+type MPMCQueue[I any] struct{ ... }
+    func NewMPMCQueue[I any](capacity int) *MPMCQueue[I]
+    func NewMPMCQueueOf[I any](capacity int) *MPMCQueue[I]
+type MPMCQueueOf[I any] = MPMCQueue[I]
+type Map[K comparable, V any] struct{ ... }
+    func NewMap[K comparable, V any](options ...func(*MapConfig)) *Map[K, V]
+type MapConfig struct{ ... }
+type MapStats struct{ ... }
+type RBMutex struct{ ... }
+    func NewRBMutex() *RBMutex
+type RToken struct{ ... }
+type SPSCQueue[I any] struct{ ... }
+    func NewSPSCQueue[I any](capacity int) *SPSCQueue[I]
+    func NewSPSCQueueOf[I any](capacity int) *SPSCQueue[I]
+type SPSCQueueOf[I any] = SPSCQueue[I]
+type UMPSCQueue[T any] struct{ ... }
+    func NewUMPSCQueue[T any]() *UMPSCQueue[T]
 ```
 
 **Demo**
@@ -85,29 +102,25 @@ package main
 import (
 	"fmt"
 
-	"github.com/fufuok/cache"
+	"github.com/fufuok/cache/xsync"
 )
 
 func main() {
-	// for generics
-	// m := cache.NewMapOf[string, int]()
-	m := cache.NewMap()
+	m := xsync.NewMap[string, int]()
 	m.Store("A", 1)
 	fmt.Println(m.LoadOrStore("B", 2)) // 2 false
 	fmt.Println(m.LoadAndDelete("B"))  // 2, true
 	fmt.Println(m.Load("A"))           // 1, true
-	// for generics
-	// fmt.Println(m.Load("B")) // 0, false
-	fmt.Println(m.Load("B")) // nil, false
-	fmt.Println(m.Size())    // 1
+	fmt.Println(m.Load("B"))           // 0, false
+	fmt.Println(m.Size())              // 1
 	m.Clear()
 }
 ```
 
-## ✨ CacheOf Interface
+## ✨ Cache Interface
 
 ```go
-type CacheOf[K comparable, V any] interface {
+type Cache[K comparable, V any] interface {
 	// Set add item to the cache, replacing any existing items.
 	// (DefaultExpiration), the item uses a cached default expiration time.
 	// (NoExpiration), the item never expires.
@@ -153,24 +166,45 @@ type CacheOf[K comparable, V any] interface {
 	// and a boolean indicating whether the key was found.
 	GetAndRefresh(k K, d time.Duration) (value V, loaded bool)
 
-	// GetOrCompute returns the existing value for the key if present.
-	// Otherwise, it computes the value using the provided function and
-	// returns the computed value. The loaded result is true if the value
-	// was loaded, false if stored.
-	GetOrCompute(k K, valueFn func() V, d time.Duration) (V, bool)
+	// GetOrCompute returns the existing value for the key if
+	// present. Otherwise, it tries to compute the value using the
+	// provided function and, if successful, stores and returns
+	// the computed value. The loaded result is true if the value was
+	// loaded, or false if computed. If valueFn returns true as the
+	// cancel value, the computation is cancelled and the zero value
+	// for type V is returned.
+	//
+	// This call locks a hash table bucket while the compute function
+	// is executed. It means that modifications on other entries in
+	// the bucket will be blocked until the valueFn executes. Consider
+	// this when the function includes long-running operations.
+	GetOrCompute(k K, valueFn func() (newValue V, cancel bool), d time.Duration) (value V, loaded bool)
 
-	// Compute either sets the computed new value for the key or deletes
-	// the value for the key. When the delete result of the valueFn function
-	// is set to true, the value will be deleted, if it exists. When delete
-	// is set to false, the value is updated to the newValue.
-	// The ok result indicates whether value was computed and stored, thus, is
-	// present in the map. The actual result contains the new value in cases where
-	// the value was computed and stored. See the example for a few use cases.
+	// Compute either sets the computed new value for the key,
+	// deletes the value for the key, or does nothing, based on
+	// the returned [ComputeOp]. When the op returned by valueFn
+	// is [UpdateOp], the value is updated to the new value. If
+	// it is [DeleteOp], the entry is removed from the map
+	// altogether. And finally, if the op is [CancelOp] then the
+	// entry is left as-is. In other words, if it did not already
+	// exist, it is not created, and if it did exist, it is not
+	// updated. This is useful to synchronously execute some
+	// operation on the value without incurring the cost of
+	// updating the map every time. The ok result indicates
+	// whether the entry is present in the map after the compute
+	// operation. The actual result contains the value of the map
+	// if a corresponding entry is present, or the zero value
+	// otherwise. See the example for a few use cases.
+	//
+	// This call locks a hash table bucket while the compute function
+	// is executed. It means that modifications on other entries in
+	// the bucket will be blocked until the valueFn executes. Consider
+	// this when the function includes long-running operations.
 	Compute(
 		k K,
-		valueFn func(oldValue V, loaded bool) (newValue V, delete bool),
+		valueFn func(oldValue V, loaded bool) (newValue V, op ComputeOp),
 		d time.Duration,
-	) (V, bool)
+	) (actual V, ok bool)
 
 	// GetAndDelete Get an item from the cache, and delete the key.
 	// Returns the item or nil,
@@ -195,6 +229,9 @@ type CacheOf[K comparable, V any] interface {
 	// Clear deletes all keys and values currently stored in the map.
 	Clear()
 
+	// Close closes the cache and releases any resources associated with it.
+	Close()
+
 	// Count returns the number of items in the cache.
 	// This may include items that have expired but have not been cleaned up.
 	Count() int
@@ -208,21 +245,35 @@ type CacheOf[K comparable, V any] interface {
 
 	// EvictedCallback returns the callback function to execute
 	// when a key-value pair expires and is evicted.
-	EvictedCallback() EvictedCallbackOf[K, V]
+	EvictedCallback() EvictedCallback[K, V]
 
 	// SetEvictedCallback Set the callback function to be executed
 	// when the key-value pair expires and is evicted.
 	// Atomic safety.
-	SetEvictedCallback(evictedCallback EvictedCallbackOf[K, V])
+	SetEvictedCallback(evictedCallback EvictedCallback[K, V])
 }
 ```
 
-## 🔰 MapOf Interface
+## 🔰 Map Interface
 
 ```go
-type MapOf[K comparable, V any] interface {
-	// Load returns the value stored in the map for a key, or nil if no
-	// value is present.
+const (
+	// CancelOp signals to Compute to not do anything as a result
+	// of executing the lambda. If the entry was not present in
+	// the map, nothing happens, and if it was present, the
+	// returned value is ignored.
+	CancelOp ComputeOp = iota
+	// UpdateOp signals to Compute to update the entry to the
+	// value returned by the lambda, creating it if necessary.
+	UpdateOp
+	// DeleteOp signals to Compute to always delete the entry
+	// from the map.
+	DeleteOp
+)
+
+type Map[K comparable, V any] interface {
+	// Load returns the value stored in the map for a key, or zero value
+	// of type V if no value is present.
 	// The ok result indicates whether value was found in the map.
 	Load(key K) (value V, ok bool)
 
@@ -241,22 +292,46 @@ type MapOf[K comparable, V any] interface {
 	// false otherwise.
 	LoadAndStore(key K, value V) (actual V, loaded bool)
 
-	// LoadOrCompute returns the existing value for the key if present.
-	// Otherwise, it computes the value using the provided function and
-	// returns the computed value. The loaded result is true if the value
-	// was loaded, false if stored.
-	LoadOrCompute(key K, valueFn func() V) (actual V, loaded bool)
+	// LoadOrCompute returns the existing value for the key if
+	// present. Otherwise, it tries to compute the value using the
+	// provided function and, if successful, stores and returns
+	// the computed value. The loaded result is true if the value was
+	// loaded, or false if computed. If valueFn returns true as the
+	// cancel value, the computation is cancelled and the zero value
+	// for type V is returned.
+	//
+	// This call locks a hash table bucket while the compute function
+	// is executed. It means that modifications on other entries in
+	// the bucket will be blocked until the valueFn executes. Consider
+	// this when the function includes long-running operations.
+	LoadOrCompute(
+		key K,
+		valueFn func() (newValue V, cancel bool),
+	) (value V, loaded bool)
 
-	// Compute either sets the computed new value for the key or deletes
-	// the value for the key. When the delete result of the valueFn function
-	// is set to true, the value will be deleted, if it exists. When delete
-	// is set to false, the value is updated to the newValue.
-	// The ok result indicates whether value was computed and stored, thus, is
-	// present in the map. The actual result contains the new value in cases where
-	// the value was computed and stored. See the example for a few use cases.
+	// Compute either sets the computed new value for the key,
+	// deletes the value for the key, or does nothing, based on
+	// the returned [ComputeOp]. When the op returned by valueFn
+	// is [UpdateOp], the value is updated to the new value. If
+	// it is [DeleteOp], the entry is removed from the map
+	// altogether. And finally, if the op is [CancelOp] then the
+	// entry is left as-is. In other words, if it did not already
+	// exist, it is not created, and if it did exist, it is not
+	// updated. This is useful to synchronously execute some
+	// operation on the value without incurring the cost of
+	// updating the map every time. The ok result indicates
+	// whether the entry is present in the map after the compute
+	// operation. The actual result contains the value of the map
+	// if a corresponding entry is present, or the zero value
+	// otherwise. See the example for a few use cases.
+	//
+	// This call locks a hash table bucket while the compute function
+	// is executed. It means that modifications on other entries in
+	// the bucket will be blocked until the valueFn executes. Consider
+	// this when the function includes long-running operations.
 	Compute(
 		key K,
-		valueFn func(oldValue V, loaded bool) (newValue V, delete bool),
+		valueFn func(oldValue V, loaded bool) (newValue V, op ComputeOp),
 	) (actual V, ok bool)
 
 	// LoadAndDelete deletes the value for a key, returning the previous
@@ -276,9 +351,10 @@ type MapOf[K comparable, V any] interface {
 	// may reflect any mapping for that key from any point during the
 	// Range call.
 	//
-	// It is safe to modify the map while iterating it. However, the
-	// concurrent modification rule apply, i.e. the changes may be not
-	// reflected in the subsequently iterated entries.
+	// It is safe to modify the map while iterating it, including entry
+	// creation, modification and deletion. However, the concurrent
+	// modification rule apply, i.e. the changes may be not reflected
+	// in the subsequently iterated entries.
 	Range(f func(key K, value V) bool)
 
 	// Clear deletes all keys and values currently stored in the map.
@@ -289,7 +365,7 @@ type MapOf[K comparable, V any] interface {
 }
 ```
 
-## 🛠 ConfigOf
+## 🛠 Config
 
 ```go
 const (
@@ -307,11 +383,11 @@ const (
 	DefaultMinCapacity = 32 * 3
 )
 
-// EvictedCallbackOf callback function to execute when the key-value pair expires and is evicted.
+// EvictedCallback callback function to execute when the key-value pair expires and is evicted.
 // Warning: cannot block, it is recommended to use goroutine.
-type EvictedCallbackOf[K comparable, V any] func(k K, v V)
+type EvictedCallback[K comparable, V any] func(k K, v V)
 
-type ConfigOf[K comparable, V any] struct {
+type Config[K comparable, V any] struct {
 	// DefaultExpiration default expiration time for key-value pairs.
 	DefaultExpiration time.Duration
 
@@ -319,7 +395,7 @@ type ConfigOf[K comparable, V any] struct {
 	CleanupInterval time.Duration
 
 	// EvictedCallback executed when the key-value pair expires.
-	EvictedCallback EvictedCallbackOf[K, V]
+	EvictedCallback EvictedCallback[K, V]
 
 	// MinCapacity specify the initial cache capacity (minimum capacity)
 	MinCapacity int

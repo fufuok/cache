@@ -21,9 +21,9 @@ const (
 
 // EvictedCallback callback function to execute when the key-value pair expires and is evicted.
 // Warning: cannot block, it is recommended to use goroutine.
-type EvictedCallback func(k string, v interface{})
+type EvictedCallback[K comparable, V any] func(k K, v V)
 
-type Config struct {
+type Config[K comparable, V any] struct {
 	// DefaultExpiration default expiration time for key-value pairs.
 	DefaultExpiration time.Duration
 
@@ -31,14 +31,14 @@ type Config struct {
 	CleanupInterval time.Duration
 
 	// EvictedCallback executed when the key-value pair expires.
-	EvictedCallback EvictedCallback
+	EvictedCallback EvictedCallback[K, V]
 
 	// MinCapacity specify the initial cache capacity (minimum capacity)
 	MinCapacity int
 }
 
-func DefaultConfig() Config {
-	return Config{
+func DefaultConfig[K comparable, V any]() Config[K, V] {
+	return Config[K, V]{
 		DefaultExpiration: NoExpiration,
 		CleanupInterval:   DefaultCleanupInterval,
 		EvictedCallback:   nil,
@@ -47,9 +47,9 @@ func DefaultConfig() Config {
 }
 
 // Helper function to set default values.
-func configDefault(config ...Config) Config {
+func configDefault[K comparable, V any](config ...Config[K, V]) Config[K, V] {
 	if len(config) < 1 {
-		return DefaultConfig()
+		return DefaultConfig[K, V]()
 	}
 
 	cfg := config[0]

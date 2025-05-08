@@ -27,7 +27,7 @@ var (
 		num: 2,
 		sub: &t1,
 	}
-	testKV = []kv{
+	testKV = []kv[string, any]{
 		{"string", "s"},
 		{"int", 1},
 		{"int32", int32(32)},
@@ -40,14 +40,14 @@ var (
 	}
 )
 
-func mockCache(opts ...Option) Cache {
+func mockCache(opts ...Option[string, any]) Cache[string, any] {
 	if len(opts) == 0 {
-		opts = []Option{
-			WithDefaultExpiration(testDefaultExpiration),
-			WithCleanupInterval(testCleanupInterval),
+		opts = []Option[string, any]{
+			WithDefaultExpiration[string, any](testDefaultExpiration),
+			WithCleanupInterval[string, any](testCleanupInterval),
 		}
 	}
-	c := New(opts...)
+	c := New[string, any](opts...)
 	for _, x := range testKV {
 		c.SetDefault(x.k, x.v)
 	}
@@ -56,53 +56,114 @@ func mockCache(opts ...Option) Cache {
 }
 
 func TestCache_Expire(t *testing.T) {
-	c := NewDefault(20*time.Millisecond, 1*time.Millisecond)
-	c.Set("a", 1, 0)
-	c.Set("b", 2, DefaultExpiration)
-	c.Set("c", 3, NoExpiration)
-	c.Set("d", 4, 20*time.Millisecond)
-	c.Set("e", 5, 100*time.Millisecond)
+	exp := 20 * time.Millisecond
+	interval := 1 * time.Millisecond
+	opts := []Option[string, int]{
+		WithDefaultExpiration[string, int](exp),
+		WithCleanupInterval[string, int](interval),
+	}
+	caches := []Cache[string, int]{
+		New[string, int](opts...),
+		NewDefault[string, int](exp, interval),
+	}
+	for _, c := range caches {
+		c.Set("a", 1, 0)
+		c.Set("b", 2, DefaultExpiration)
+		c.Set("c", 3, NoExpiration)
+		c.Set("d", 4, 20*time.Millisecond)
+		c.Set("e", 5, 150*time.Millisecond)
 
-	<-time.After(25 * time.Millisecond)
-	_, ok := c.Get("d")
-	if ok {
-		t.Fatal("key d should be automatically deleted")
-	}
+		<-time.After(25 * time.Millisecond)
+		_, ok := c.Get("d")
+		if ok {
+			t.Fatal("key d should be automatically deleted")
+		}
 
-	<-time.After(30 * time.Millisecond)
-	_, ok = c.Get("b")
-	if ok {
-		t.Fatal("key b should be automatically deleted")
-	}
-	_, ok = c.Get("a")
-	if !ok {
-		t.Fatal("key a is set to never expire, but not found")
-	}
-	_, ok = c.Get("c")
-	if !ok {
-		t.Fatal("key c is set to never expire, but not found")
-	}
-	_, ok = c.Get("e")
-	if !ok {
-		t.Fatal("key e has not expired but was not found")
-	}
+		<-time.After(30 * time.Millisecond)
+		_, ok = c.Get("b")
+		if ok {
+			t.Fatal("key b should be automatically deleted")
+		}
+		_, ok = c.Get("a")
+		if !ok {
+			t.Fatal("key a is set to never expire, but not found")
+		}
+		_, ok = c.Get("c")
+		if !ok {
+			t.Fatal("key c is set to never expire, but not found")
+		}
+		_, ok = c.Get("e")
+		if !ok {
+			t.Fatal("key e has not expired but was not found")
+		}
 
-	<-time.After(50 * time.Millisecond)
-	_, ok = c.Get("e")
-	if ok {
-		t.Fatal("key e should be automatically deleted")
+		<-time.After(100 * time.Millisecond)
+		_, ok = c.Get("e")
+		if ok {
+			t.Fatal("key e should be automatically deleted")
+		}
+
+		n := c.Count()
+		if n != 2 {
+			t.Fatalf("expected number of items in cache to be 2, got: %d", n)
+		}
+
+		c.Clear()
+
+		n = c.Count()
+		if n != 0 {
+			t.Fatalf("expected number of items in cache to be 0, got: %d", n)
+		}
 	}
+}
 
-	n := c.Count()
-	if n != 2 {
-		t.Fatalf("expected number of items in cache to be 2, got: %d", n)
+func TestCache_Integer_Expire(t *testing.T) {
+	exp := 20 * time.Millisecond
+	interval := 1 * time.Millisecond
+	opts := []Option[int, int]{
+		WithDefaultExpiration[int, int](exp),
+		WithCleanupInterval[int, int](interval),
 	}
+	caches := []Cache[int, int]{
+		New[int, int](opts...),
+		NewDefault[int, int](exp, interval),
+	}
+	for _, c := range caches {
+		c.Set(1, 1, 0)
+		c.Set(2, 2, DefaultExpiration)
+		c.Set(3, 3, NoExpiration)
+		c.Set(4, 4, 20*time.Millisecond)
+		c.Set(5, 5, 100*time.Millisecond)
 
-	c.Clear()
+		<-time.After(25 * time.Millisecond)
+		_, ok := c.Get(4)
+		if ok {
+			t.Fatal("key 4 should be automatically deleted")
+		}
 
-	n = c.Count()
-	if n != 0 {
-		t.Fatalf("expected number of items in cache to be 0, got: %d", n)
+		<-time.After(30 * time.Millisecond)
+		_, ok = c.Get(2)
+		if ok {
+			t.Fatal("key 2 should be automatically deleted")
+		}
+		_, ok = c.Get(1)
+		if !ok {
+			t.Fatal("key 1 is set to never expire, but not found")
+		}
+		_, ok = c.Get(3)
+		if !ok {
+			t.Fatal("key 3 is set to never expire, but not found")
+		}
+		_, ok = c.Get(5)
+		if !ok {
+			t.Fatal("key 5 has not expired but was not found")
+		}
+
+		<-time.After(50 * time.Millisecond)
+		_, ok = c.Get(5)
+		if ok {
+			t.Fatal("key 5 should be automatically deleted")
+		}
 	}
 }
 
@@ -130,15 +191,15 @@ func TestCache_SetAndGet(t *testing.T) {
 
 func TestCache_SetDefault_WithoutCleanup(t *testing.T) {
 	defaultExpiration := 50 * time.Millisecond
-	c := NewDefault(defaultExpiration, 0)
+	c := NewDefault[string, int](defaultExpiration, 0)
 	c.SetDefault("x", 1)
 	v, ok := c.Get("x")
-	if !ok || v == nil {
+	if !ok || v != 1 {
 		t.Fatal("key x should have a value")
 	}
 
 	v, ttl, ok := c.GetWithTTL("x")
-	if !ok || v == nil {
+	if !ok || v != 1 {
 		t.Fatal("key x should have a value")
 	}
 	if ttl < 30*time.Millisecond || ttl > defaultExpiration {
@@ -147,7 +208,7 @@ func TestCache_SetDefault_WithoutCleanup(t *testing.T) {
 
 	<-time.After(55 * time.Millisecond)
 	v, ok = c.Get("x")
-	if ok || v != nil {
+	if ok || v != 0 {
 		t.Fatal("since key x is expired, it should be automatically deleted on get().")
 	}
 
@@ -158,15 +219,15 @@ func TestCache_SetDefault_WithoutCleanup(t *testing.T) {
 
 func TestCache_SetDefault(t *testing.T) {
 	defaultExpiration := 50 * time.Millisecond
-	c := NewDefault(defaultExpiration, testCleanupInterval)
+	c := NewDefault[string, int](defaultExpiration, testCleanupInterval)
 	c.SetDefault("x", 1)
 	v, ok := c.Get("x")
-	if !ok || v == nil {
+	if !ok || v != 1 {
 		t.Fatal("key x should have a value")
 	}
 
 	v, ttl, ok := c.GetWithTTL("x")
-	if !ok || v == nil {
+	if !ok || v != 1 {
 		t.Fatal("key x should have a value")
 	}
 	if ttl < 30*time.Millisecond || ttl > defaultExpiration {
@@ -175,7 +236,7 @@ func TestCache_SetDefault(t *testing.T) {
 
 	<-time.After(55 * time.Millisecond)
 	v, ok = c.Get("x")
-	if ok || v != nil {
+	if ok || v != 0 {
 		t.Fatal("key x should be automatically deleted")
 	}
 
@@ -186,60 +247,58 @@ func TestCache_SetDefault(t *testing.T) {
 
 func TestCache_SetForever(t *testing.T) {
 	defaultExpiration := 50 * time.Millisecond
-	c := NewDefault(defaultExpiration, testCleanupInterval)
+	c := NewDefault[string, int](defaultExpiration, testCleanupInterval)
 	c.SetForever("x", 1)
 	v, ok := c.Get("x")
-	if !ok || v == nil {
+	if !ok || v != 1 {
 		t.Fatal("key x should have a value")
 	}
 
 	<-time.After(55 * time.Millisecond)
 	v, ttl, ok := c.GetWithTTL("x")
-	if !ok || v == nil || ttl != NoExpiration {
+	if !ok || v != 1 || ttl != NoExpiration {
 		t.Fatal("the lifetime of key x should be forever")
 	}
 }
 
 func TestCache_GetOrSet(t *testing.T) {
-	c := New()
+	c := New[string, int]()
 	v, ok := c.GetOrSet("x", 1, testDefaultExpiration)
 	if ok {
 		t.Fatal("key x should not loaded")
 	}
-	x, ok := v.(int)
-	if !ok || x != 1 {
+	if v != 1 {
 		t.Fatalf("key x, expected %d, got %d", 1, v)
 	}
 
 	v, ok = c.GetOrSet("x", 2, testDefaultExpiration)
-	if !ok || v.(int) != 1 {
+	if !ok || v != 1 {
 		t.Fatalf("key x, expected %d, got %d", 1, v)
 	}
 
 	y, ok := c.Get("x")
-	if !ok || y.(int) != 1 {
+	if !ok || y != 1 {
 		t.Fatalf("key x, expected %d, got %d", 1, y)
 	}
 }
 
 func TestCache_GetAndSet(t *testing.T) {
-	c := New()
+	c := New[string, int]()
 	v, ok := c.GetAndSet("x", 1, testDefaultExpiration)
 	if ok {
 		t.Fatal("key x should not loaded")
 	}
-	x, ok := v.(int)
-	if !ok || x != 1 {
+	if v != 1 {
 		t.Fatalf("key x, expected %d, got %d", 1, v)
 	}
 
 	v, ok = c.GetAndSet("x", 2, 50*time.Millisecond)
-	if !ok || v.(int) != 1 {
+	if !ok || v != 1 {
 		t.Fatalf("key x, expected %d, got %d", 1, v)
 	}
 
 	y, ok := c.Get("x")
-	if !ok || y.(int) != 2 {
+	if !ok || y != 2 {
 		t.Fatalf("key x, expected %d, got %d", 2, y)
 	}
 
@@ -247,7 +306,7 @@ func TestCache_GetAndSet(t *testing.T) {
 	c.GetAndSet("x", 2, 200*time.Millisecond)
 	time.Sleep(100 * time.Millisecond)
 	z, ok := c.Get("x")
-	if !ok || z.(int) != 2 {
+	if !ok || z != 2 {
 		t.Fatalf("key x, expected %d, got %d", 3, z)
 	}
 
@@ -259,66 +318,66 @@ func TestCache_GetAndSet(t *testing.T) {
 }
 
 func TestCache_GetAndRefresh(t *testing.T) {
-	c := NewDefault(100*time.Millisecond, testCleanupInterval)
+	c := NewDefault[string, int](100*time.Millisecond, testCleanupInterval)
 	c.SetDefault("x", 1)
 	v, tm, ok := c.GetWithExpiration("x")
-	if !ok || v == nil || tm.Before(time.Now()) {
+	if !ok || v != 1 || tm.Before(time.Now()) {
 		t.Fatal("failed to get the value and expiration time of key x")
 	}
 
 	<-time.After(50 * time.Millisecond)
 	v, ttl, ok := c.GetWithTTL("x")
-	if !ok || v == nil || ttl > 50*time.Millisecond {
+	if !ok || v != 1 || ttl > 50*time.Millisecond {
 		t.Fatalf("key X lifetime is incorrect, expected <= 50ms, got %d", ttl)
 	}
 
 	c.GetAndRefresh("x", 1*time.Second)
 	v, ttl, ok = c.GetWithTTL("x")
-	if !ok || v == nil || ttl < 500*time.Millisecond {
+	if !ok || v != 1 || ttl < 500*time.Millisecond {
 		t.Fatalf("key X lifetime is incorrect, expected >= 500ms, got %d", ttl)
 	}
 	v, tm, ok = c.GetWithExpiration("x")
-	if !ok || v == nil || v.(int) != 1 || tm.Before(time.Now()) {
+	if !ok || v != 1 || tm.Before(time.Now()) {
 		t.Fatal("failed to get the value and expiration time of key x")
 	}
 }
 
 func TestCache_GetOrCompute(t *testing.T) {
 	const numEntries = 1000
-	c := New(WithMinCapacity(numEntries))
+	c := New[string, int](WithMinCapacity[string, int](numEntries))
 	for i := 0; i < numEntries; i++ {
-		v, loaded := c.GetOrCompute(strconv.Itoa(i), func() interface{} {
-			return i
+		v, loaded := c.GetOrCompute(strconv.Itoa(i), func() (int, bool) {
+			return i, false
 		}, 0)
 		if loaded {
 			t.Fatalf("value not computed for %d", i)
 		}
-		if vi, ok := v.(int); ok && vi != i {
+		if v != i {
 			t.Fatalf("values do not match for %d: %v", i, v)
 		}
 	}
 	for i := 0; i < numEntries; i++ {
-		v, loaded := c.GetOrCompute(strconv.Itoa(i), func() interface{} {
-			return i
+		v, loaded := c.GetOrCompute(strconv.Itoa(i), func() (int, bool) {
+			return i, false
 		}, 0)
 		if !loaded {
 			t.Fatalf("value not loaded for %d", i)
 		}
-		if vi, ok := v.(int); ok && vi != i {
+		if v != i {
 			t.Fatalf("values do not match for %d: %v", i, v)
 		}
 	}
 }
 
 func TestCache_GetOrCompute_WithKeyExpired(t *testing.T) {
-	c := New()
-	v, loaded := c.GetOrCompute("1", func() interface{} {
-		return 1
+	c := New[string, int]()
+	v, loaded := c.GetOrCompute("1", func() (int, bool) {
+		return 1, false
 	}, 0)
 	if loaded {
 		t.Fatal("value not computed for 1")
 	}
-	if vi, ok := v.(int); ok && vi != 1 {
+	if v != 1 {
 		t.Fatalf("values do not match for 1: %v", v)
 	}
 
@@ -326,138 +385,166 @@ func TestCache_GetOrCompute_WithKeyExpired(t *testing.T) {
 	if !loaded {
 		t.Fatal("value not loaded for 1")
 	}
-	if vi, ok := v.(int); ok && vi != 1 {
+	if v != 1 {
 		t.Fatalf("values do not match for 1: %v", v)
 	}
 
-	v, loaded = c.GetOrCompute("1", func() interface{} {
-		return 2
+	v, loaded = c.GetOrCompute("1", func() (int, bool) {
+		return 2, false
 	}, 0)
 	if !loaded {
 		t.Fatal("value not loaded for 1")
 	}
-	if vi, ok := v.(int); ok && vi != 1 {
+	if v != 1 {
 		t.Fatalf("values do not match for 1: %v", v)
 	}
 
 	time.Sleep(10 * time.Millisecond)
 
-	v, loaded = c.GetOrCompute("1", func() interface{} {
-		return 1
+	v, loaded = c.GetOrCompute("1", func() (int, bool) {
+		return 1, false
 	}, 0)
 	if loaded {
 		t.Fatal("value not computed for 1")
 	}
-	if vi, ok := v.(int); ok && vi != 1 {
+	if v != 1 {
 		t.Fatalf("values do not match for 1: %v", v)
+	}
+
+	v, loaded = c.GetOrCompute("3", func() (int, bool) {
+		return 3, true
+	}, 0)
+	if loaded {
+		t.Fatal("value not computed for 3")
+	}
+	if v != 0 {
+		t.Fatalf("values do not match for 0: %v", v)
+	}
+
+	v, loaded = c.GetOrCompute("3", func() (int, bool) {
+		return 33, false
+	}, 0)
+	if loaded {
+		t.Fatal("value not computed for 3")
+	}
+	if v != 33 {
+		t.Fatalf("values do not match for 33: %v", v)
+	}
+
+	v, loaded = c.GetOrCompute("3", func() (int, bool) {
+		return 333, false
+	}, 0)
+	if !loaded {
+		t.Fatal("value not loaded for 3")
+	}
+	if v != 33 {
+		t.Fatalf("values do not match for 33: %v", v)
 	}
 }
 
 func TestCache_GetOrCompute_FunctionCalledOnce(t *testing.T) {
-	c := New()
+	c := New[int, int]()
 	for i := 0; i < 100; {
-		c.GetOrCompute(strconv.Itoa(i), func() (v interface{}) {
+		c.GetOrCompute(i, func() (v int, cancel bool) {
 			v, i = i, i+1
-			return v
+			return v, false
 		}, 0)
 	}
-	c.Range(func(k string, v interface{}) bool {
-		if vi, ok := v.(int); !ok || strconv.Itoa(vi) != k {
-			t.Fatalf("%sth key is not equal to value %d", k, v)
+	c.Range(func(k, v int) bool {
+		if k != v {
+			t.Fatalf("%dth key is not equal to value %d", k, v)
 		}
 		return true
 	})
 }
 
 func TestCache_Compute(t *testing.T) {
-	var zeroedV interface{}
-	c := New()
+	c := New[string, int]()
 	// Store a new value.
-	v, ok := c.Compute("foobar", func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool) {
-		if oldValue != zeroedV {
-			t.Fatalf("oldValue should be empty interface{} when computing a new value: %d", oldValue)
+	v, ok := c.Compute("foobar", func(oldValue int, loaded bool) (newValue int, op ComputeOp) {
+		if oldValue != 0 {
+			t.Fatalf("oldValue should be 0 when computing a new value: %d", oldValue)
 		}
 		if loaded {
 			t.Fatal("loaded should be false when computing a new value")
 		}
 		newValue = 42
-		delete = false
+		op = UpdateOp
 		return
 	}, 0)
-	if v.(int) != 42 {
+	if v != 42 {
 		t.Fatalf("v should be 42 when computing a new value: %d", v)
 	}
 	if !ok {
 		t.Fatal("ok should be true when computing a new value")
 	}
 	// Update an existing value.
-	v, ok = c.Compute("foobar", func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool) {
-		if oldValue.(int) != 42 {
+	v, ok = c.Compute("foobar", func(oldValue int, loaded bool) (newValue int, op ComputeOp) {
+		if oldValue != 42 {
 			t.Fatalf("oldValue should be 42 when updating the value: %d", oldValue)
 		}
 		if !loaded {
 			t.Fatal("loaded should be true when updating the value")
 		}
-		newValue = oldValue.(int) + 42
-		delete = false
+		newValue = oldValue + 42
+		op = UpdateOp
 		return
 	}, 0)
-	if v.(int) != 84 {
+	if v != 84 {
 		t.Fatalf("v should be 84 when updating the value: %d", v)
 	}
 	if !ok {
 		t.Fatal("ok should be true when updating the value")
 	}
 	// Delete an existing value.
-	v, ok = c.Compute("foobar", func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool) {
+	v, ok = c.Compute("foobar", func(oldValue int, loaded bool) (newValue int, op ComputeOp) {
 		if oldValue != 84 {
 			t.Fatalf("oldValue should be 84 when deleting the value: %d", oldValue)
 		}
 		if !loaded {
 			t.Fatal("loaded should be true when deleting the value")
 		}
-		delete = true
+		op = DeleteOp
 		return
 	}, 0)
-	if v.(int) != 84 {
+	if v != 84 {
 		t.Fatalf("v should be 84 when deleting the value: %d", v)
 	}
 	if ok {
 		t.Fatal("ok should be false when deleting the value")
 	}
 	// Try to delete a non-existing value. Notice different key.
-	v, ok = c.Compute("barbaz", func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool) {
-		var zeroedV interface{}
-		if oldValue != zeroedV {
-			t.Fatalf("oldValue should be empty interface{} when trying to delete a non-existing value: %d", oldValue)
+	v, ok = c.Compute("barbaz", func(oldValue int, loaded bool) (newValue int, op ComputeOp) {
+		if oldValue != 0 {
+			t.Fatalf("oldValue should be 0 when trying to delete a non-existing value: %d", oldValue)
 		}
 		if loaded {
 			t.Fatal("loaded should be false when trying to delete a non-existing value")
 		}
 		// We're returning a non-zero value, but the map should ignore it.
 		newValue = 42
-		delete = true
+		op = DeleteOp
 		return
 	}, 0)
-	if v != zeroedV {
-		t.Fatalf("v should be empty interface{} when trying to delete a non-existing value: %d", v)
+	if v != 0 {
+		t.Fatalf("v should be 0 when trying to delete a non-existing value: %d", v)
 	}
 	if ok {
 		t.Fatal("ok should be false when trying to delete a non-existing value")
 	}
 	// Store a new value.
-	v, ok = c.Compute("expires soon", func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool) {
-		if oldValue != zeroedV {
-			t.Fatalf("oldValue should be empty interface{} when computing a new value: %d", oldValue)
+	v, ok = c.Compute("expires soon", func(oldValue int, loaded bool) (newValue int, op ComputeOp) {
+		if oldValue != 0 {
+			t.Fatalf("oldValue should be 0 when computing a new value: %d", oldValue)
 		}
 		if loaded {
 			t.Fatal("loaded should be false when computing a new value")
 		}
 		newValue = 42
-		delete = false
+		op = UpdateOp
 		return
 	}, 10*time.Millisecond)
-	if v.(int) != 42 {
+	if v != 42 {
 		t.Fatalf("v should be 42 when computing a new value: %d", v)
 	}
 	if !ok {
@@ -465,21 +552,20 @@ func TestCache_Compute(t *testing.T) {
 	}
 	time.Sleep(10 * time.Millisecond)
 	// Try to delete a expired value. Notice different key.
-	v, ok = c.Compute("expires soon", func(oldValue interface{}, loaded bool) (newValue interface{}, delete bool) {
-		var zeroedV interface{}
-		if oldValue != zeroedV {
-			t.Fatalf("oldValue should be empty interface{} when trying to delete a expired value: %d", oldValue)
+	v, ok = c.Compute("expires soon", func(oldValue int, loaded bool) (newValue int, op ComputeOp) {
+		if oldValue != 0 {
+			t.Fatalf("oldValue should be 0 when trying to delete a expired value: %d", oldValue)
 		}
 		if loaded {
 			t.Fatal("loaded should be false when trying to delete a expired value")
 		}
 		// We're returning a non-zero value, but the map should ignore it.
 		newValue = 42
-		delete = true
+		op = DeleteOp
 		return
-	}, 10*time.Millisecond)
-	if v != zeroedV {
-		t.Fatalf("v should be empty interface{} when trying to delete a expired value: %d", v)
+	}, 0)
+	if v != 0 {
+		t.Fatalf("v should be 0 when trying to delete a expired value: %d", v)
 	}
 	if ok {
 		t.Fatal("ok should be false when trying to delete a expired value")
@@ -487,49 +573,49 @@ func TestCache_Compute(t *testing.T) {
 }
 
 func TestCache_GetAndDelete(t *testing.T) {
-	c := New()
+	c := New[string, int]()
 	v, ok := c.GetAndDelete("x")
-	if ok || v != nil {
+	if ok || v != 0 {
 		t.Fatal("key a should not exist")
 	}
 
 	c.SetDefault("x", 1)
 
 	v, ok = c.GetAndDelete("x")
-	if !ok || v.(int) != 1 {
+	if !ok || v != 1 {
 		t.Fatalf("key x, expected %d, got %d", 1, v)
 	}
 
 	v, ok = c.Get("x")
-	if ok || v != nil {
+	if ok || v != 0 {
 		t.Fatal("key x should be deleted")
 	}
 }
 
 func TestCache_Delete(t *testing.T) {
-	c := New()
+	c := New[string, int]()
 	c.Delete("x")
 
 	c.SetForever("x", 1)
 	v, ok := c.Get("x")
-	if !ok || v.(int) != 1 {
+	if !ok || v != 1 {
 		t.Fatalf("key x, expected %d, got %d", 1, v)
 	}
 
 	c.Delete("x")
 
 	v, ok = c.Get("x")
-	if ok || v != nil {
+	if ok || v != 0 {
 		t.Fatal("key x should be deleted")
 	}
 }
 
 func TestCache_DeleteExpired(t *testing.T) {
 	var n int64
-	testEvictedCallback := func(k string, v interface{}) {
-		atomic.AddInt64(&n, v.(int64))
+	testEvictedCallback := func(k string, v int64) {
+		atomic.AddInt64(&n, v)
 	}
-	c := NewDefault(10*time.Millisecond, 5*time.Millisecond, testEvictedCallback)
+	c := NewDefault[string, int64](10*time.Millisecond, 5*time.Millisecond, testEvictedCallback)
 	for i := 0; i < 10; i++ {
 		c.SetDefault(strconv.Itoa(i), int64(i))
 	}
@@ -541,14 +627,14 @@ func TestCache_DeleteExpired(t *testing.T) {
 	}
 
 	v, ok := c.Get("1")
-	if ok || v != nil {
+	if ok || v != 0 {
 		t.Fatal("key 1 should have expired, but was fetched")
 	}
 }
 
-func countBasedOnRange(c Cache) int {
+func countBasedOnTypedRange(c Cache[string, int]) int {
 	size := 0
-	c.Range(func(key string, value interface{}) bool {
+	c.Range(func(key string, value int) bool {
 		size++
 		return true
 	})
@@ -557,7 +643,7 @@ func countBasedOnRange(c Cache) int {
 
 func TestCache_Size(t *testing.T) {
 	const numEntries = 1000
-	c := New()
+	c := New[string, int]()
 	size := c.Count()
 	if size != 0 {
 		t.Fatalf("zero size expected: %d", size)
@@ -570,7 +656,7 @@ func TestCache_Size(t *testing.T) {
 		if size != expectedSize {
 			t.Fatalf("size of %d was expected, got: %d", expectedSize, size)
 		}
-		rsize := countBasedOnRange(c)
+		rsize := countBasedOnTypedRange(c)
 		if size != rsize {
 			t.Fatalf("size does not match number of entries in Range: %v, %v", size, rsize)
 		}
@@ -582,7 +668,7 @@ func TestCache_Size(t *testing.T) {
 		if size != expectedSize {
 			t.Fatalf("size of %d was expected, got: %d", expectedSize, size)
 		}
-		rsize := countBasedOnRange(c)
+		rsize := countBasedOnTypedRange(c)
 		if size != rsize {
 			t.Fatalf("size does not match number of entries in Range: %v, %v", size, rsize)
 		}
@@ -591,7 +677,7 @@ func TestCache_Size(t *testing.T) {
 
 func TestCache_Clear(t *testing.T) {
 	const numEntries = 1000
-	c := New()
+	c := New[string, int]()
 	for i := 0; i < numEntries; i++ {
 		c.SetDefault(strconv.Itoa(i), i)
 	}
@@ -604,7 +690,7 @@ func TestCache_Clear(t *testing.T) {
 	if size != 0 {
 		t.Fatalf("zero size was expected, got: %d", size)
 	}
-	rsize := countBasedOnRange(c)
+	rsize := countBasedOnTypedRange(c)
 	if rsize != 0 {
 		t.Fatalf("zero number of entries in Range was expected, got: %d", rsize)
 	}
@@ -612,11 +698,11 @@ func TestCache_Clear(t *testing.T) {
 
 func TestCache_Range(t *testing.T) {
 	var n int64
-	testRange := func(k string, v interface{}) bool {
-		atomic.AddInt64(&n, v.(int64))
+	testRange := func(k string, v int64) bool {
+		atomic.AddInt64(&n, v)
 		return true
 	}
-	c := New()
+	c := New[string, int64]()
 	for i := 0; i < 10; i++ {
 		c.SetDefault(strconv.Itoa(i), int64(i))
 	}

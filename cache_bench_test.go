@@ -1,6 +1,3 @@
-//go:build go1.18
-// +build go1.18
-
 package cache
 
 import (
@@ -50,7 +47,7 @@ func BenchmarkCache_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewOf[string, int](WithMinCapacityOf[string, int](benchmarkNumEntries))
+			m := New[string, int](WithMinCapacity[string, int](benchmarkNumEntries))
 			benchmarkCache(b, func(k string) (int, bool) {
 				return m.Get(k)
 			}, func(k string, v int) {
@@ -69,7 +66,7 @@ func BenchmarkCache_Integer_NoWarmUp(b *testing.B) {
 			continue
 		}
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewOf[int, int](WithMinCapacityOf[int, int](benchmarkNumEntries))
+			m := New[int, int](WithMinCapacity[int, int](benchmarkNumEntries))
 			benchmarkIntegerCache(b, func(k int) (int, bool) {
 				return m.Get(k)
 			}, func(k int, v int) {
@@ -84,7 +81,7 @@ func BenchmarkCache_Integer_NoWarmUp(b *testing.B) {
 func BenchmarkCache_WarmUp(b *testing.B) {
 	for _, bc := range benchmarkCases {
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewOf[string, int]()
+			m := New[string, int]()
 			for i := 0; i < benchmarkNumEntries; i++ {
 				m.SetForever(benchmarkKeyPrefix+strconv.Itoa(i), i)
 			}
@@ -102,7 +99,7 @@ func BenchmarkCache_WarmUp(b *testing.B) {
 func BenchmarkCache_Integer_WarmUp(b *testing.B) {
 	for _, bc := range benchmarkCases {
 		b.Run(bc.name, func(b *testing.B) {
-			m := NewOf[int, int]()
+			m := New[int, int]()
 			for i := 0; i < benchmarkNumEntries; i++ {
 				m.SetForever(i, i)
 			}
@@ -170,7 +167,7 @@ func benchmarkIntegerCache(
 }
 
 func BenchmarkCache_Range(b *testing.B) {
-	m := NewOf[string, int]()
+	m := New[string, int]()
 	for i := 0; i < benchmarkNumEntries; i++ {
 		m.SetForever(benchmarkKeys[i], i)
 	}
