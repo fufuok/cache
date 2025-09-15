@@ -716,3 +716,341 @@ func TestCache_Range(t *testing.T) {
 		t.Fatalf("incorrect number of items in cache, expected %d, got %d", 10, c.Count())
 	}
 }
+
+func TestCache_ItemsWithExpiration(t *testing.T) {
+	c := NewDefault[string, int](100*time.Millisecond, testCleanupInterval)
+
+	// Add test data
+	c.Set("never_expire", 1, NoExpiration)
+	c.Set("expire_100ms", 2, 100*time.Millisecond)
+	c.Set("expire_200ms", 3, 200*time.Millisecond)
+	c.SetDefault("default_expire", 4) // Use default expiration time
+
+	// Wait for some items to expire
+	time.Sleep(50 * time.Millisecond)
+
+	items := c.ItemsWithExpiration()
+
+	// Verify v count
+	if len(items) != 4 {
+		t.Fatalf("expected 4 items, got %d", len(items))
+	}
+
+	// Verify never-expire v
+	v, ok := items["never_expire"]
+	if !ok {
+		t.Fatal("never_expire v should exist")
+	}
+	if v.Value != 1 {
+		t.Fatalf("never_expire value should be 1, got %d", v.Value)
+	}
+	if !v.Expiration.IsZero() {
+		t.Fatal("never_expire should have zero expiration time")
+	}
+
+	// Verify v with expiration time
+	v, ok = items["expire_100ms"]
+	if !ok {
+		t.Fatal("expire_100ms v should exist")
+	}
+	if v.Value != 2 {
+		t.Fatalf("expire_100ms value should be 2, got %d", v.Value)
+	}
+	if v.Expiration.IsZero() {
+		t.Fatal("expire_100ms should have non-zero expiration time")
+	}
+
+	// Verify v with default expiration time
+	v, ok = items["default_expire"]
+	if !ok {
+		t.Fatal("default_expire v should exist")
+	}
+	if v.Value != 4 {
+		t.Fatalf("default_expire value should be 4, got %d", v.Value)
+	}
+	if v.Expiration.IsZero() {
+		t.Fatal("default_expire should have non-zero expiration time")
+	}
+
+	// Wait for more items to expire
+	time.Sleep(100 * time.Millisecond)
+
+	items = c.ItemsWithExpiration()
+
+	// Verify expired items are not in result
+	if _, ok := items["expire_100ms"]; ok {
+		t.Fatal("expire_100ms should have expired and not be in items")
+	}
+
+	// Verify never-expire v still exists
+	if _, ok := items["never_expire"]; !ok {
+		t.Fatal("never_expire should still exist")
+	}
+
+	c.Close()
+}
+
+func TestCache_LoadItems(t *testing.T) {
+	c := New[string, int]()
+
+	// Prepare data to load
+	itemsToLoad := map[string]int{
+		"item1": 100,
+		"item2": 200,
+		"item3": 300,
+	}
+
+	// Load data
+	c.LoadItems(itemsToLoad, 50*time.Millisecond)
+
+	// Verify data is loaded correctly
+	for k, expectedV := range itemsToLoad {
+		v, ok := c.Get(k)
+		if !ok {
+			t.Fatalf("item %s should be loaded", k)
+		}
+		if v != expectedV {
+			t.Fatalf("item %s: expected %d, got %d", k, expectedV, v)
+		}
+
+		// Verify expiration time
+		_, ttl, ok := c.GetWithTTL(k)
+		if !ok {
+			t.Fatalf("item %s should exist", k)
+		}
+		if ttl <= 0 || ttl > 50*time.Millisecond {
+			t.Fatalf("item %s: incorrect TTL %v", k, ttl)
+		}
+	}
+
+	// Verify item count
+	if c.Count() != len(itemsToLoad) {
+		t.Fatalf("expected %d items, got %d", len(itemsToLoad), c.Count())
+	}
+
+	// Test loading with existing data
+	c.Set("existing", 999, NoExpiration)
+
+	moreItems := map[string]int{
+		"item4": 400,
+		"item5": 500,
+	}
+
+	c.LoadItems(moreItems, NoExpiration)
+
+	// Verify all data exists
+	totalExpected := len(itemsToLoad) + len(moreItems) + 1 // +1 for existing
+	if c.Count() != totalExpected {
+		t.Fatalf("expected %d items, got %d", totalExpected, c.Count())
+	}
+
+	// Verify existing data is not affected
+	v, ok := c.Get("existing")
+	if !ok || v != 999 {
+		t.Fatal("existing item should not be affected")
+	}
+
+	c.Close()
+}
+
+func TestCache_LoadItemsWithExpiration(t *testing.T) {
+	c := New[string, string]()
+
+	// Prepare data with expiration times
+	now := time.Now()
+	itemsToLoad := map[string]ItemWithExpiration[string]{
+		"never_expire": {
+			Value:      "never expires",
+			Expiration: time.Time{}, // Zero value means never expires
+		},
+		"expire_soon": {
+			Value:      "expires soon",
+			Expiration: now.Add(50 * time.Millisecond),
+		},
+		"expire_later": {
+			Value:      "expires later",
+			Expiration: now.Add(200 * time.Millisecond),
+		},
+	}
+
+	// Load data
+	c.LoadItemsWithExpiration(itemsToLoad)
+
+	// Verify data is loaded correctly
+	for k, expectedItem := range itemsToLoad {
+		v, expiration, ok := c.GetWithExpiration(k)
+		if !ok {
+			t.Fatalf("item %s should be loaded", k)
+		}
+		if v != expectedItem.Value {
+			t.Fatalf("item %s: expected value %s, got %s", k, expectedItem.Value, v)
+		}
+
+		// Verify expiration time
+		if expectedItem.Expiration.IsZero() {
+			// Never expires
+			if !expiration.IsZero() {
+				t.Fatalf("item %s should never expire", k)
+			}
+		} else {
+			// Has expiration time
+			if expiration.IsZero() {
+				t.Fatalf("item %s should have expiration time", k)
+			}
+			// Allow some time tolerance
+			diff := expiration.Sub(expectedItem.Expiration)
+			if diff < -10*time.Millisecond || diff > 10*time.Millisecond {
+				t.Fatalf("item %s: expiration time mismatch, expected %v, got %v",
+					k, expectedItem.Expiration, expiration)
+			}
+		}
+	}
+
+	// Verify item count
+	if c.Count() != len(itemsToLoad) {
+		t.Fatalf("expected %d items, got %d", len(itemsToLoad), c.Count())
+	}
+
+	// Wait for some items to expire
+	time.Sleep(80 * time.Millisecond)
+
+	// Verify expired items
+	_, ok := c.Get("expire_soon")
+	if ok {
+		t.Fatal("expire_soon should have expired")
+	}
+
+	// Verify non-expired items
+	v, ok := c.Get("never_expire")
+	if !ok || v != "never expires" {
+		t.Fatal("never_expire should still exist")
+	}
+
+	v, ok = c.Get("expire_later")
+	if !ok || v != "expires later" {
+		t.Fatal("expire_later should still exist")
+	}
+
+	// Wait for remaining items to expire
+	time.Sleep(150 * time.Millisecond)
+
+	_, ok = c.Get("expire_later")
+	if ok {
+		t.Fatal("expire_later should have expired")
+	}
+
+	// Never-expire item should still exist
+	v, ok = c.Get("never_expire")
+	if !ok || v != "never expires" {
+		t.Fatal("never_expire should still exist after all time")
+	}
+
+	// Test overwriting existing data
+	c.Set("existing", "existing data", NoExpiration)
+
+	newItems := map[string]ItemWithExpiration[string]{
+		"existing": {
+			Value:      "overwritten data",
+			Expiration: time.Now().Add(100 * time.Millisecond),
+		},
+	}
+
+	c.LoadItemsWithExpiration(newItems)
+
+	v, _, ok = c.GetWithExpiration("existing")
+	if !ok || v != "overwritten data" {
+		t.Fatal("existing item should be overwritten")
+	}
+
+	c.Close()
+}
+
+func TestCache_LoadItems_EdgeCases(t *testing.T) {
+	c := New[string, int]()
+
+	// Test loading empty map
+	emptyItems := make(map[string]int)
+	c.LoadItems(emptyItems, testDefaultExpiration)
+	if c.Count() != 0 {
+		t.Fatal("cache should be empty after loading empty items")
+	}
+
+	// Test loading nil map (should not panic)
+	var nilItems map[string]int
+	c.LoadItems(nilItems, testDefaultExpiration)
+	if c.Count() != 0 {
+		t.Fatal("cache should be empty after loading nil items")
+	}
+
+	c.Close()
+}
+
+func TestCache_LoadItemsWithExpiration_EdgeCases(t *testing.T) {
+	c := New[string, int]()
+
+	// Test loading empty map
+	emptyItems := make(map[string]ItemWithExpiration[int])
+	c.LoadItemsWithExpiration(emptyItems)
+	if c.Count() != 0 {
+		t.Fatal("cache should be empty after loading empty items")
+	}
+
+	// Test loading nil map (should not panic)
+	var nilItems map[string]ItemWithExpiration[int]
+	c.LoadItemsWithExpiration(nilItems)
+	if c.Count() != 0 {
+		t.Fatal("cache should be empty after loading nil items")
+	}
+
+	// Test loading already expired items - they should be skipped
+	pastTime := time.Now().Add(-100 * time.Millisecond)
+	expiredItems := map[string]ItemWithExpiration[int]{
+		"expired": {
+			Value:      42,
+			Expiration: pastTime,
+		},
+		"valid": {
+			Value:      100,
+			Expiration: time.Now().Add(100 * time.Millisecond),
+		},
+	}
+
+	c.LoadItemsWithExpiration(expiredItems)
+
+	// Expired items should be skipped and not loaded
+	_, ok := c.Get("expired")
+	if ok {
+		t.Fatal("expired item should not be loaded")
+	}
+
+	// Valid items should be loaded normally
+	v, ok := c.Get("valid")
+	if !ok || v != 100 {
+		t.Fatal("valid item should be loaded correctly")
+	}
+
+	// Cache should only contain the valid item
+	if c.Count() != 1 {
+		t.Fatalf("cache should contain 1 item, got %d", c.Count())
+	}
+
+	// Test expired items deletion: if an existing item has the same key as expired item
+	c.Set("existing_key", 999, NoExpiration)
+
+	expiredWithExistingKey := map[string]ItemWithExpiration[int]{
+		"existing_key": {
+			Value:      888,
+			Expiration: pastTime, // Already expired
+		},
+	}
+
+	c.LoadItemsWithExpiration(expiredWithExistingKey)
+
+	// The existing item should be deleted since we tried to load an expired item with same key
+	_, ok = c.Get("existing_key")
+	if ok {
+		t.Fatal("existing item should be deleted when trying to load expired item with same key")
+	}
+
+	c.Close()
+}

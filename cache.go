@@ -110,6 +110,19 @@ type Cache[K comparable, V any] interface {
 	// This is a snapshot, which may include items that are about to expire.
 	Items() map[K]V
 
+	// ItemsWithExpiration return the items in the cache with their expiration times.
+	// This is a snapshot, which may include items that are about to expire.
+	// The returned map contains items where the time.Time is zero for items that never expire.
+	ItemsWithExpiration() map[K]ItemWithExpiration[V]
+
+	// LoadItems loads multiple items into the cache.
+	// This is useful for bulk loading data from external sources.
+	LoadItems(items map[K]V, defaultExpiration time.Duration)
+
+	// LoadItemsWithExpiration loads multiple items with their expiration times into the cache.
+	// Items with zero expiration time will never expire.
+	LoadItemsWithExpiration(items map[K]ItemWithExpiration[V])
+
 	// Clear deletes all keys and values currently stored in the map.
 	Clear()
 
@@ -135,6 +148,13 @@ type Cache[K comparable, V any] interface {
 	// when the key-value pair expires and is evicted.
 	// Atomic safety.
 	SetEvictedCallback(evictedCallback EvictedCallback[K, V])
+}
+
+// ItemWithExpiration represents a cache item with its expiration time
+// Zero time means never expires
+type ItemWithExpiration[V any] struct {
+	Value      V         `json:"value"`
+	Expiration time.Time `json:"expiration"`
 }
 
 func New[K comparable, V any](opts ...Option[K, V]) Cache[K, V] {

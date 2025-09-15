@@ -425,6 +425,55 @@ func (c *xsyncMap[K, V]) Items() map[K]V {
 	return items
 }
 
+// ItemsWithExpiration return the items in the cache with their expiration times.
+// This is a snapshot, which may include items that are about to expire.
+func (c *xsyncMap[K, V]) ItemsWithExpiration() map[K]ItemWithExpiration[V] {
+	items := make(map[K]ItemWithExpiration[V], c.Count())
+	now := time.Now().UnixNano()
+	c.items.Range(func(k K, i item[V]) bool {
+		if !i.expiredWithNow(now) {
+			var expiration time.Time
+			if i.e > 0 {
+				expiration = time.Unix(0, i.e)
+			}
+			items[k] = ItemWithExpiration[V]{
+				Value:      i.v,
+				Expiration: expiration,
+			}
+		}
+		return true
+	})
+	return items
+}
+
+// LoadItems loads multiple items into the cache with the specified default expiration.
+func (c *xsyncMap[K, V]) LoadItems(items map[K]V, defaultExpiration time.Duration) {
+	for k, v := range items {
+		c.Set(k, v, defaultExpiration)
+	}
+}
+
+// LoadItemsWithExpiration loads multiple items with their expiration times into the cache.
+// Items with expiration times in the past will be skipped and not loaded.
+// If an existing item has the same key as a skipped expired item, the existing item will be deleted.
+func (c *xsyncMap[K, V]) LoadItemsWithExpiration(items map[K]ItemWithExpiration[V]) {
+	now := time.Now()
+	for k, v := range items {
+		// Skip items that are already expired
+		if !v.Expiration.IsZero() && v.Expiration.Before(now) {
+			// Optionally delete existing item with the same key if it exists
+			c.items.Delete(k)
+			continue
+		}
+
+		if v.Expiration.IsZero() {
+			c.Set(k, v.Value, NoExpiration)
+		} else {
+			c.Set(k, v.Value, time.Until(v.Expiration))
+		}
+	}
+}
+
 // Clear deletes all keys and values currently stored in the map.
 func (c *xsyncMap[K, V]) Clear() {
 	c.items.Clear()
