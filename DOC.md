@@ -16,6 +16,7 @@ import "github.com/fufuok/cache"
 - [type Config](<#Config>)
   - [func DefaultConfig\[K comparable, V any\]\(\) Config\[K, V\]](<#DefaultConfig>)
 - [type EvictedCallback](<#EvictedCallback>)
+- [type ItemWithExpiration](<#ItemWithExpiration>)
 - [type Map](<#Map>)
 - [type Option](<#Option>)
   - [func WithCleanupInterval\[K comparable, V any\]\(interval time.Duration\) Option\[K, V\]](<#WithCleanupInterval>)
@@ -46,7 +47,7 @@ const (
 ```
 
 <a name="Cache"></a>
-## type [Cache](<https://github.com/fufuok/cache/blob/master/cache.go#L7-L138>)
+## type [Cache](<https://github.com/fufuok/cache/blob/master/cache.go#L7-L151>)
 
 
 
@@ -157,6 +158,19 @@ type Cache[K comparable, V any] interface {
     // This is a snapshot, which may include items that are about to expire.
     Items() map[K]V
 
+    // ItemsWithExpiration return the items in the cache with their expiration times.
+    // This is a snapshot, which may include items that are about to expire.
+    // The returned map contains items where the time.Time is zero for items that never expire.
+    ItemsWithExpiration() map[K]ItemWithExpiration[V]
+
+    // LoadItems loads multiple items into the cache.
+    // This is useful for bulk loading data from external sources.
+    LoadItems(items map[K]V, defaultExpiration time.Duration)
+
+    // LoadItemsWithExpiration loads multiple items with their expiration times into the cache.
+    // Items with zero expiration time will never expire.
+    LoadItemsWithExpiration(items map[K]ItemWithExpiration[V])
+
     // Clear deletes all keys and values currently stored in the map.
     Clear()
 
@@ -186,7 +200,7 @@ type Cache[K comparable, V any] interface {
 ```
 
 <a name="New"></a>
-### func [New](<https://github.com/fufuok/cache/blob/master/cache.go#L140>)
+### func [New](<https://github.com/fufuok/cache/blob/master/cache.go#L160>)
 
 ```go
 func New[K comparable, V any](opts ...Option[K, V]) Cache[K, V]
@@ -195,7 +209,7 @@ func New[K comparable, V any](opts ...Option[K, V]) Cache[K, V]
 
 
 <a name="NewDefault"></a>
-### func [NewDefault](<https://github.com/fufuok/cache/blob/master/cache.go#L148-L152>)
+### func [NewDefault](<https://github.com/fufuok/cache/blob/master/cache.go#L168-L172>)
 
 ```go
 func NewDefault[K comparable, V any](defaultExpiration, cleanupInterval time.Duration, evictedCallback ...EvictedCallback[K, V]) Cache[K, V]
@@ -267,6 +281,18 @@ EvictedCallback callback function to execute when the key\-value pair expires an
 
 ```go
 type EvictedCallback[K comparable, V any] func(k K, v V)
+```
+
+<a name="ItemWithExpiration"></a>
+## type [ItemWithExpiration](<https://github.com/fufuok/cache/blob/master/cache.go#L155-L158>)
+
+ItemWithExpiration represents a cache item with its expiration time Zero time means never expires
+
+```go
+type ItemWithExpiration[V any] struct {
+    Value      V         `json:"value"`
+    Expiration time.Time `json:"expiration"`
+}
 ```
 
 <a name="Map"></a>

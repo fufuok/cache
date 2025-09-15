@@ -30,6 +30,7 @@ type ComputeOp = xsync.ComputeOp
 type Config[K comparable, V any] struct{ ... }
     func DefaultConfig[K comparable, V any]() Config[K, V]
 type EvictedCallback[K comparable, V any] func(k K, v V)
+type ItemWithExpiration[V any] struct{ ... }
 type Map[K comparable, V any] interface{ ... }
 type Option[K comparable, V any] func(config *Config[K, V])
     func WithCleanupInterval[K comparable, V any](interval time.Duration) Option[K, V]
@@ -81,7 +82,9 @@ type MPMCQueue[I any] struct{ ... }
 type MPMCQueueOf[I any] = MPMCQueue[I]
 type Map[K comparable, V any] struct{ ... }
     func NewMap[K comparable, V any](options ...func(*MapConfig)) *Map[K, V]
+    func NewMapOf[K comparable, V any](options ...func(*MapConfig)) *Map[K, V]
 type MapConfig struct{ ... }
+type MapOf[K comparable, V any] = Map[K, V]
 type MapStats struct{ ... }
 type RBMutex struct{ ... }
     func NewRBMutex() *RBMutex
@@ -226,6 +229,19 @@ type Cache[K comparable, V any] interface {
 	// This is a snapshot, which may include items that are about to expire.
 	Items() map[K]V
 
+	// ItemsWithExpiration return the items in the cache with their expiration times.
+	// This is a snapshot, which may include items that are about to expire.
+	// The returned map contains items where the time.Time is zero for items that never expire.
+	ItemsWithExpiration() map[K]ItemWithExpiration[V]
+
+	// LoadItems loads multiple items into the cache.
+	// This is useful for bulk loading data from external sources.
+	LoadItems(items map[K]V, defaultExpiration time.Duration)
+
+	// LoadItemsWithExpiration loads multiple items with their expiration times into the cache.
+	// Items with zero expiration time will never expire.
+	LoadItemsWithExpiration(items map[K]ItemWithExpiration[V])
+
 	// Clear deletes all keys and values currently stored in the map.
 	Clear()
 
@@ -251,6 +267,29 @@ type Cache[K comparable, V any] interface {
 	// when the key-value pair expires and is evicted.
 	// Atomic safety.
 	SetEvictedCallback(evictedCallback EvictedCallback[K, V])
+}
+
+// ItemWithExpiration represents a cache item with its expiration time
+// Zero time means never expires
+type ItemWithExpiration[V any] struct {
+	Value      V         `json:"value"`
+	Expiration time.Time `json:"expiration"`
+}
+
+func New[K comparable, V any](opts ...Option[K, V]) Cache[K, V] {
+	cfg := DefaultConfig[K, V]()
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return newXsyncMap[K, V](cfg)
+}
+
+func NewDefault[K comparable, V any](
+	defaultExpiration,
+	cleanupInterval time.Duration,
+	evictedCallback ...EvictedCallback[K, V],
+) Cache[K, V] {
+	return newXsyncMapDefault[K, V](defaultExpiration, cleanupInterval, evictedCallback...)
 }
 ```
 
