@@ -9,7 +9,7 @@ const (
 )
 
 type (
-	BucketPadded[K comparable, V any] = bucketPadded[K, V]
+	BucketPadded = bucketPadded
 )
 
 func EnableAssertions() {
@@ -20,8 +20,8 @@ func DisableAssertions() {
 	assertionsEnabled = false
 }
 
-func Fastrand() uint32 {
-	return runtime_fastrand()
+func Cheaprand() uint32 {
+	return runtime_cheaprand()
 }
 
 func Broadcast(b uint8) uint64 {

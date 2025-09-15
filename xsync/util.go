@@ -43,8 +43,8 @@ func parallelism() uint32 {
 }
 
 //go:noescape
-//go:linkname runtime_fastrand runtime.fastrand
-func runtime_fastrand() uint32
+//go:linkname runtime_cheaprand runtime.cheaprand
+func runtime_cheaprand() uint32
 
 func broadcast(b uint8) uint64 {
 	return 0x101010101010101 * uint64(b)
@@ -60,6 +60,7 @@ func markZeroBytes(w uint64) uint64 {
 	return ((w - 0x0101010101010101) & (^w) & 0x8080808080808080)
 }
 
+// Sets byte of the input word at the specified index to the given value.
 func setByte(w uint64, b uint8, idx int) uint64 {
 	shift := idx << 3
 	return (w &^ (0xff << shift)) | (uint64(b) << shift)
